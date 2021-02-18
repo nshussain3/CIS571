@@ -139,7 +139,7 @@ module lc4_alu_jump(    input wire [15:0] i_r1data,
                         output wire [15:0] out);
       wire [15:0] jsrr, jsr, trap;                    
       assign jsrr = i_r1data;                                           // also for jmpr, rti
-      assign jsr = (i_pc & 16'h8000) | {1'b0, i_insn[10:0], {4{1'b0}}}; 
+      assign jsr = (i_pc & 16'h8000) | {1'b0, i_insn[10:0], {4{1'b0}}};  
       assign trap = 16'h8000 | i_insn[7:0];
       assign out = (alu_ctl == 3'd0) ? jsrr:
                    (alu_ctl == 3'd1) ? jsr:
