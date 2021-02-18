@@ -4,6 +4,37 @@
 
 `default_nettype none
 
+module lc4_decoder(     input wire [15:0] i_insn,
+                        output wire [5:0] alu_ctl)
+      assign alu_ctl[5:3] = ((i_insn[15:12] == 4'd1)
+                  |  (i_insn[15:12] == 4'd6)
+                  |  (i_insn[15:12] == 4'd7)
+                  |  (i_insn[15:11] == 5'd25)
+                  |  ((i_insn[15:12] == 4'd10) & (i_insn[5:4] == 2'd3))) ? 3'd0: // arith ops
+                  (i_insn[15:12] == 4'd5) ? 3'd1: // logic ops
+                  (i_insn[15:12] == 4'd2) ? 3'd2: // comp ops
+                  ((i_insn[15:12] == 4'd10) & (i_insn[5:4] < 2'd3)) ? 3'd3: // shifter ops
+                  ((i_insn[15:12] == 4'd9) 
+                  |   (i_insn[15:12] == 4'd13)) ? 3'd4: // const ops
+                  ((i_insn[15:12] == 4'd4)
+                  |   (i_insn[15:11] == 5'd24)) ? 3'd5: // jsrr, jsr, jmpr ops
+                  ((i_insn[15:12] == 4'd15)
+                  |   (i_insn[15:12] == 4'd8)) ? 3'd6;  // trap, rti ops
+
+      assign alu_ctl[2:0] =
+            (((i_insn[15:12] == 4'd1) & (i_insn[5] == 0)) |
+             ((i_insn[15:12] == 4'd5) & (i_insn[5] == 0))) ? i_insn[5:3] :
+            ((i_insn[15:12] == 4'd1) & (i_insn[5] == 1)) ? 3'b101 :
+            (((i_insn[15:12] == 4'd10) & (i_insn[5:4] == 2'd3)) |
+             ((i_insn[15:12] == 4'd5) & (i_insn[5] == 1))) ? 3'b100 :
+            (i_insn[15:13] == 3'd3) ? 3'b110 :
+            (i_insn[15:12] == 4'd2) ? {0, i_insn[8:7]} :
+            ((i_insn[15:12] == 4'd10) & (i_insn[5:4] < 2'd3)) ? {0, i_insn[5:4]} :
+            ((i_insn[15:12] == 4'd9) | (i_insn[15:12] == 4'd15)) ? 3'b000 :
+            ((i_insn[15:12] == 4'd13) | (i_insn[15:12] == 4'd8)) ? 3'b001 :
+            (i_insn[15:11] == 5'd25) ? 3'b111 :
+            3'b000
+endmodule
 
 module lc4_alu_arith(   input wire [15:0] A,
                         input wire [15:0] B,
