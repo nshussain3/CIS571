@@ -77,7 +77,7 @@ module cla16
   // four-bit gp aggregates
   for (i = 0; i < 4; i = i+1) begin
     gp4 f(.gin(g[4*i+3:4*i]), .pin(p[4*i+3:4*i]), .cin(cout[4*i]),
-          .gout(gfour[i]), .pout(pfour[i]), .cout(cout[4*i+3:4*i]));
+          .gout(gfour[i]), .pout(pfour[i]), .cout(cout[4*i+3:4*i+1]));
   end
   /* aggregate each four-bit gp to get 16-bit gp (no need to use g16-0 or p16-0)
      because we are not computing carry out
