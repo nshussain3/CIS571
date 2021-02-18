@@ -5,9 +5,9 @@
 `default_nettype none
 
 
-module lc4_alu_arith(   input wire [15:0] A
-                        input wire [15:0] B
-                        input wire [2:0] alu_ctl
+module lc4_alu_arith(   input wire [15:0] A,
+                        input wire [15:0] B,
+                        input wire [2:0] alu_ctl,
                         output wire [15:0] out);
       wire cla_cin;
       wire [15:0] cla_B_input;
@@ -30,16 +30,16 @@ module lc4_alu_arith(   input wire [15:0] A
             .cin(cla_cin),
             .sum(cla_output)
       );
-      assign out = (alu_ctl == 3'd1) ? a * b:
+      assign out = (alu_ctl == 3'd1) ? A * B:
                    (alu_ctl == 3'd3) ? quotient:
                    (alu_ctl == 3'd4) ? remainder:
                    cla_output;
 endmodule
 
 
-module lc4_alu_logic(   input wire [15:0] A
-                        input wire [15:0] B
-                        input wire [2:0] alu_ctl
+module lc4_alu_logic(   input wire [15:0] A,
+                        input wire [15:0] B,
+                        input wire [2:0] alu_ctl,
                         output wire [15:0] out);
       assign out = (alu_ctl == 3'd0) ? A & B:
                    (alu_ctl == 3'd1) ? ~ A:
@@ -48,9 +48,9 @@ module lc4_alu_logic(   input wire [15:0] A
                    A & { {11{B[4]}}, B[4:0] };
 endmodule
 
-module lc4_alu_compare( input wire [15:0] A
-                        input wire [15:0] B
-                        input wire [2:0] alu_ctl
+module lc4_alu_compare( input wire [15:0] A,
+                        input wire [15:0] B,
+                        input wire [2:0] alu_ctl,
                         output wire [15:0] out);
       wire [15:0] sext_B6, res0, res1, res2, res3;
       assign sext_B6 = { {9{B[6]}}, B[6:0]};
@@ -59,13 +59,13 @@ module lc4_alu_compare( input wire [15:0] A
                     ($signed(A) == $signed(B)) ? 16'd0 : 16'd1;
 
       assign res1 = (A < B) ? {16{1'b1}}:
-                    (A == B ? 16'd0 : 16'd1;
+                    (A == B) ? 16'd0 : 16'd1;
 
       assign res2 = ($signed(A) < $signed(sext_B6)) ? {16{1'b1}}:
                     ($signed(A) == $signed(sext_B6)) ? 16'd0 : 16'd1;
 
       assign res3 = (A < sext_B6) ? {16{1'b1}}:
-                    (a == sext_B6) ? 16'd0 : 16'd1;
+                    (A == sext_B6) ? 16'd0 : 16'd1;
       
       assign out = (alu_ctl == 3'd0) ? res0:              //signed all
                    (alu_ctl == 3'd1) ? res1:              //unsigned all
@@ -74,9 +74,9 @@ module lc4_alu_compare( input wire [15:0] A
 endmodule
 
 
-module lc4_alu_shifter( input wire [15:0] A
-                        input wire [15:0] B
-                        input wire [2:0] alu_ctl
+module lc4_alu_shifter( input wire [15:0] A,
+                        input wire [15:0] B,
+                        input wire [2:0] alu_ctl,
                         output wire [15:0] out);
       assign out = (alu_ctl == 3'd0) ? A << B:
                    (alu_ctl == 3'd1) ? A >>> B:
@@ -84,13 +84,13 @@ module lc4_alu_shifter( input wire [15:0] A
 endmodule
 
 
-module lc4_alu_const(   input wire [15:0] A
-                        input wire [15:0] B
-                        input wire [2:0] alu_ctl
+module lc4_alu_const(   input wire [15:0] A,
+                        input wire [15:0] B,
+                        input wire [2:0] alu_ctl,
                         output wire [15:0] out);
       wire [15:0] const, hiconst;
       assign const = { {7{B[8]}}, B[8:0] };
-      assign hiconst = (A & 16'hFF) | (B << 8)
+      assign hiconst = (A & 16'hFF) | (B << 8);
       assign out = (alu_ctl == 3'd0) ? const : hiconst;
 endmodule
 
@@ -106,36 +106,36 @@ module lc4_alu(input  wire [15:0] i_insn,
       wire [5:0] alu_ctl; // need to make a decoder to get this
 
       lc4_alu_arith arith(
-            A.(i_r1data),
-            B.(i_r2data),
-            alu_ctl.(alu_ctl[2:0])
-            out.(arith_out)
+            .A(i_r1data),
+            .B(i_r2data),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(arith_out)
       );
       lc4_alu_logic logic(
-            A.(i_r1data),
-            B.(i_r2data),
-            alu_ctl.(alu_ctl[2:0])
-            out.(arith_out)
+            .A(i_r1data),
+            .B(i_r2data),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(arith_out)
       );
       lc4_alu_compare compare(
-            A.(i_r1data),
-            B.(i_r2data),
-            alu_ctl.(alu_ctl[2:0])
-            out.(arith_out)
+            .A(i_r1data),
+            .B(i_r2data),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(arith_out)
       );
       lc4_alu_shifter shift(
-            A.(i_r1data),
-            B.(i_r2data),
-            alu_ctl.(alu_ctl[2:0])
-            out.(arith_out)
+            .A(i_r1data),
+            .B(i_r2data),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(arith_out)
       );
       lc4_alu_const const(
-            A.(i_r1data),
-            B.(i_r2data),
-            alu_ctl.(alu_ctl[2:0])
-            out.(arith_out)
+            .A(i_r1data),
+            .B(i_r2data),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(arith_out)
       );
-      assign o_result = (alu_ctl[5:3] == )
+      //assign o_result = (alu_ctl[5:3] == )
 
       
 
