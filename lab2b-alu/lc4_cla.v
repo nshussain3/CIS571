@@ -75,9 +75,9 @@ module cla16
     gp1 s(.a(a[i]), .b(b[i]), .g(g[i]), .p(p[i]));
   end
   // four-bit gp aggregates
-  for (i = 0; i < 4; i = i+4) begin
-    gp4 f(.gin(g[i:i+3]), .pin(p[i:i+3]), .cin(cout[i]),
-          .gout(gfour[i]), .pout(pfour[i]) .cout(cout[i+1:i+3]));
+  for (i = 0; i < 4; i = i+1) begin
+    gp4 f(.gin(g[4*i+3:4*i]), .pin(p[4*i+3:4*i]), .cin(cout[4*i]),
+          .gout(gfour[i]), .pout(pfour[i]), .cout(cout[4*i+3:4*i]));
   end
   /* aggregate each four-bit gp to get 16-bit gp (no need to use g16-0 or p16-0)
      because we are not computing carry out
@@ -86,7 +86,7 @@ module cla16
              .gout(g16), .pout(p16), .cout({cout[12], cout[8], cout[4]}));
 
   for (i = 0; i < 16; i = i+1) begin
-    sum[i] = a[i] ^ b[i] ^ cout[i];
+    assign sum[i] = a[i] ^ b[i] ^ cout[i];
   end
 
 endmodule

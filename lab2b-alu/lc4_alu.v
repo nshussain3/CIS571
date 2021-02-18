@@ -1,25 +1,26 @@
 /* INSERT NAME AND PENNKEY HERE */
+// Spencer Solit - ssolit
+// Neehal Hussain - 
 
 `timescale 1ns / 1ps
 
 `default_nettype none
 
 module lc4_decoder(     input wire [15:0] i_insn,
-                        output wire [5:0] alu_ctl)
+                        output wire [5:0] alu_ctl);
       assign alu_ctl[5:3] = ((i_insn[15:12] == 4'd1)
-                  |  (i_insn[15:12] == 4'd6)
-                  |  (i_insn[15:12] == 4'd7)
-                  |  (i_insn[15:11] == 5'd25)
-                  |  ((i_insn[15:12] == 4'd10) & (i_insn[5:4] == 2'd3))) ? 3'd0: // arith ops
+                  ||  (i_insn[15:12] == 4'd6)
+                  ||  (i_insn[15:12] == 4'd7)
+                  ||  (i_insn[15:11] == 5'd25)
+                  ||  ((i_insn[15:12] == 4'd10) && (i_insn[5:4] == 2'd3))) ? 3'd0: // arith ops
                   (i_insn[15:12] == 4'd5) ? 3'd1: // logic ops
                   (i_insn[15:12] == 4'd2) ? 3'd2: // comp ops
-                  ((i_insn[15:12] == 4'd10) & (i_insn[5:4] < 2'd3)) ? 3'd3: // shifter ops
+                  ((i_insn[15:12] == 4'd10) && (i_insn[5:4] < 2'd3)) ? 3'd3: // shifter ops
                   ((i_insn[15:12] == 4'd9) 
-                  |   (i_insn[15:12] == 4'd13)) ? 3'd4: // const ops
+                  ||   (i_insn[15:12] == 4'd13)) ? 3'd4: // const ops
                   ((i_insn[15:12] == 4'd4)
-                  |   (i_insn[15:11] == 5'd24)) ? 3'd5: // jsrr, jsr, jmpr ops
-                  ((i_insn[15:12] == 4'd15)
-                  |   (i_insn[15:12] == 4'd8)) ? 3'd6;  // trap, rti ops
+                  ||   (i_insn[15:11] == 5'd24)) ? 3'd5: // jsrr, jsr, jmpr ops
+                  3'd6;  // trap, rti ops
 
       assign alu_ctl[2:0] =
             (((i_insn[15:12] == 4'd1) & (i_insn[5] == 0)) |
@@ -33,19 +34,22 @@ module lc4_decoder(     input wire [15:0] i_insn,
             ((i_insn[15:12] == 4'd9) | (i_insn[15:12] == 4'd15)) ? 3'b000 :
             ((i_insn[15:12] == 4'd13) | (i_insn[15:12] == 4'd8)) ? 3'b001 :
             (i_insn[15:11] == 5'd25) ? 3'b111 :
-            3'b000
+            3'b000;
 endmodule
 
 module lc4_alu_arith(   input wire [15:0] A,
                         input wire [15:0] B,
                         input wire [2:0] alu_ctl,
+                        input wire [15:0] pc,
                         output wire [15:0] out);
       wire cla_cin;
-      wire [15:0] cla_B_input;
+      wire [15:0] cla_A_input, cla_B_input;
       assign cla_cin = (alu_ctl[2:0] == 3'd2) ? 1'b1 : 1'b0;
+      assign cla_A_input = (alu_ctl[2:0] == 3'd7) ? pc : A;
       assign cla_B_input = (alu_ctl[2:0] == 3'd2) ? ~B:
                            (alu_ctl[2:0] == 3'd5) ? { {11{B[4]}}, B[4:0] }:
                            (alu_ctl[2:0] == 3'd6) ? { {10{B[5]}}, B[5:0] }:
+                           (alu_ctl[2:0] == 3'd7) ? { {5{B[10]}}, B[10:0] }:
                            B;
       
       wire [15:0] quotient, remainder, cla_output;
@@ -56,8 +60,8 @@ module lc4_alu_arith(   input wire [15:0] A,
             .o_quotient(quotient)
       );
       cla16 cla (
-            .a(A),
-            .b(B),
+            .a(cla_A_input),
+            .b(cla_B_input),
             .cin(cla_cin),
             .sum(cla_output)
       );
@@ -149,9 +153,15 @@ module lc4_alu(input  wire [15:0] i_insn,
       wire [15:0] arith_out, logic_out, compare_out, shifter_out, const_out, jump_out;
       wire [5:0] alu_ctl; // need to make a decoder to get this
 
+      lc4_decoder decoder(
+            .i_insn(i_insn),
+            .alu_ctl(alu_ctl[5:0])
+      );
+
       lc4_alu_arith arith(
             .A(i_r1data),
             .B(i_r2data),
+            .pc(i_pc),
             .alu_ctl(alu_ctl[2:0]),
             .out(arith_out)
       );
