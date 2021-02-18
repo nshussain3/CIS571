@@ -21,7 +21,7 @@ module lc4_decoder(     input wire [15:0] i_insn,
                   ((i_insn[15:12] == 4'd4)
                   ||   (i_insn[15:11] == 5'd24) || (i_insn[15:12] == 4'd15)
                   ||   (i_insn[15:12] == 4'd8)) ? 3'd5: // jsrr, jsr, jmpr, trap, rti ops
-                   ? 3'd6; // trap, rti ops
+                   3'd6; // trap, rti ops
 
             // jsrr, jmpr, rti subopcode 0
             // jsr subopcode 1, trap 2
@@ -32,8 +32,8 @@ module lc4_decoder(     input wire [15:0] i_insn,
             (((i_insn[15:12] == 4'd10) && (i_insn[5:4] == 2'd3)) ||
              ((i_insn[15:12] == 4'd5) && (i_insn[5] == 1))) ? 3'b100 :
             (i_insn[15:13] == 3'd3) ? 3'b110 :
-            (i_insn[15:12] == 4'd2) ? {0, i_insn[8:7]} :
-            ((i_insn[15:12] == 4'd10) && (i_insn[5:4] < 2'd3)) ? {0, i_insn[5:4]} :
+            (i_insn[15:12] == 4'd2) ? {1'b0, i_insn[8:7]} :
+            ((i_insn[15:12] == 4'd10) && (i_insn[5:4] < 2'd3)) ? {1'b0, i_insn[5:4]} :
             ((i_insn[15:12] == 4'd9) || (i_insn[15:12] == 4'd8) || 
             (i_insn[15:11] == 5'd8) || (i_insn[15:11] == 5'd24)) ? 3'b000 :
             ((i_insn[15:12] == 4'd13) ||(i_insn[15:11] == 5'd9)) ? 3'b001 :
