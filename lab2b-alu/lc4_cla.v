@@ -26,7 +26,7 @@ module gp2 (input wire [1:0] gin, pin,
             input wire cin,
             output wire gout, pout, cout);
   assign cout = gin[0] | (pin[0] & cin);
-  assign pout = (& pin[1:0]);
+  assign pout = (pin[0] & pin[1]);
   assign gout = (gin[0] & pin[1]) | gin[1];
 endmodule
 
@@ -47,7 +47,7 @@ module gp4(input wire [3:0] gin, pin,
                 .gout(gmid[1]), .pout(pmid[1]),
                 .cout(cout[2]));
   
-  gp2 bits3to0 (.gin(gmid[1:0]), .pin(gmid[1:0]),
+  gp2 bits3to0 (.gin(gmid[1:0]), .pin(pmid[1:0]),
                 .cin(cin),
                 .gout(gout), .pout(pout),
                 .cout(cout[1]));
