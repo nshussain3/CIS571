@@ -29,8 +29,7 @@ module lc4_decoder(     input wire [15:0] i_insn,
       assign alu_ctl[2:0] =
             (((i_insn[15:12] == 4'd1) && (i_insn[5] == 0)) ||
              ((i_insn[15:12] == 4'd5) && (i_insn[5] == 0))) ? i_insn[5:3] :
-            (((i_insn[15:12] == 4'd1) && (i_insn[5] == 1)) ||
-              (i_insn[15:12] == 4'd0)) ? 3'b101 :
+            (((i_insn[15:12] == 4'd1) && (i_insn[5] == 1)) ? 3'b101 :
             (((i_insn[15:12] == 4'd10) && (i_insn[5:4] == 2'd3)) ||
              ((i_insn[15:12] == 4'd5) && (i_insn[5] == 1))) ? 3'b100 :
             (i_insn[15:13] == 3'd3) ? 3'b110 :
@@ -39,7 +38,7 @@ module lc4_decoder(     input wire [15:0] i_insn,
             ((i_insn[15:12] == 4'd9) || (i_insn[15:12] == 4'd8) || 
             (i_insn[15:11] == 5'd8) || (i_insn[15:11] == 5'd24)) ? 3'b000 :
             ((i_insn[15:12] == 4'd13) ||(i_insn[15:11] == 5'd9)) ? 3'b001 :
-            (i_insn[15:11] == 5'd25) ? 3'b111 :
+            ((i_insn[15:11] == 5'd25) && (i_insn[15:12] == 4'd0) ? 3'b111 :
             3'b000;
 endmodule
 
