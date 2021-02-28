@@ -64,10 +64,40 @@ module lc4_processor
    /* END DO NOT MODIFY THIS CODE */
 
 
-   /*******************************
-    * TODO: INSERT YOUR CODE HERE *
-    *******************************/
 
+   /* STUDENT CODE BEGINS */
+   wire [2:0] r1sel, r2sel, wsel;
+   wire r1re, r2re, regfile_we, nzp_we, select_pc_plus_one, 
+      is_load, is_store, is_branch, is_control_insn;
+   lc4_decoder processor_decoder (.insn(i_cur_insn),
+                                  .r1sel(r1sel), .r1re(r1re),
+                                  .r2sel(r2sel), .r2re(r2re),
+                                  .wsel(wsel), .regfile_we(regfile_we),
+                                  .nzp_we(nzp_we), 
+                                  .select_pc_plus_one(select_pc_plus_one),
+                                  .is_load(is_load), .is_store(is_store),
+                                  .is_branch(is_branch), 
+                                  is_control_insn(is_control_insn));
+                                  
+   wire [15:0] r1_src1_val, r2_src2_val;
+   wire [15:0] select_result;
+   lc4_regfile regfile (.clk(clk),
+                        .gwe(gwe),
+                        .rst(rst),
+                        .i_rs(r1sel), .o_rs_data(r1_src1_val),
+                        .i_rt(r2sel), .o_rt_data(r2_src2_val),
+                        .i_rd(wsel), .i_wdata(select_result), i_rd_we(regfile_we));
+   
+   wire [15:0] alu_output;
+   lc4_alu alu (.insn(i_cur_insn),
+                .i_pc(pc),
+                .i_r1data(r1_src1_val),
+                .i_r2data(r2_src2_val),
+                .o_result(alu_output));
+   
+
+   assign test_cur_pc = pc;
+   /* STUDENT CODE ENDS */
 
 
    /* Add $display(...) calls in the always block below to
@@ -132,3 +162,41 @@ module lc4_processor
    end
 `endif
 endmodule
+
+
+
+module branch_unit(input  wire clk,
+                   input  wire rst,                
+                   input  wire gwe,    
+
+                   input wire bu_pc_plus_one,
+                   input wire [15:0] bu_select_result,
+                   input wire nzp_we,
+                   input wire is_branch,
+                   input wire is_control,
+                   input wire [15:0] insn,
+                   output wire [15:0] bu_next_pc);
+   wire bu_branch_or_control, bu_nzp_reduced, bu_branch_output_sel;
+   wire [2:0] bu_select_result_sign, bu_nzp_bus, bu_nzp_and;
+   
+   assign bu_branch_or_control = is_branch & is_control;
+   assign bu_select_result_sign = (bu_select_result > 0) ? 3'b001:
+                                  (bu_select_result == 0) ? 3'b010: 3'b100;
+   
+   Nbit_reg nzp_reg (
+      .in(bu_select_result_sign), 
+      .out(bu_nzp_bus),
+      .clk(clk),
+      .we(nzp_we),
+      .gwe(gwe),
+      .rst(rst)
+      );
+   defparam nzp_reg.n = 3;
+
+   assign bu_nzp_and = bu_nzp_bus & insn[11:9];
+   assign bu_nzp_reduced = |bu_nzp_and;
+   assign bu_branch_output_sel = bu_nzp_reduced & bu_branch_or_control;
+   assign bu_next_pc = (bu_branch_output_sel == 1) ? bu_select_result : bu_pc_plus_one;
+endmodule
+
+
