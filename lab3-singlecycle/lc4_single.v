@@ -93,14 +93,14 @@ module lc4_processor
                         .i_rd_we(regfile_we));
    
    wire [15:0] alu_output;
-   lc4_alu alu (.insn(i_cur_insn),
+   lc4_alu alu (.i_insn(i_cur_insn),
                 .i_pc(pc),
                 .i_r1data(rsrc1_val),
                 .i_r2data(rsrc2_val),
                 .o_result(alu_output));
    
    wire [15:0] pc_plus_one;
-   lc4_cla pc_incr(.a(pc), .b(16'b0), .cin(1'b1), .sum(pc_plus_one));
+   cla16 pc_incr(.a(pc), .b(16'b0), .cin(1'b1), .sum(pc_plus_one));
    assign select_result = (select_pc_plus_one == 1) ? pc_plus_one :
                                (is_load == 1) ? i_cur_dmem_data : alu_output;
    
@@ -204,7 +204,7 @@ module lc4_branch_unit(input  wire clk,
                    input  wire rst,                
                    input  wire gwe,    
 
-                   input wire bu_pc_plus_one,
+                   input wire [15:0] bu_pc_plus_one,
                    input wire [15:0] bu_select_result,
                    input wire nzp_we,
                    input wire is_branch,
