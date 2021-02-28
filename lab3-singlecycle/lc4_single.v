@@ -129,7 +129,8 @@ module lc4_processor
    // nzp new bits handled in BRANCH
    assign test_dmem_we = is_load;
    assign test_dmem_addr = o_dmem_addr;
-   assign test_dmem_data = (is_load == 1) ? i_cur_dmem_data : o_dmem_towrite;
+   assign test_dmem_data = (is_load == 1) ? i_cur_dmem_data :
+                           (is_store == 1) ? o_dmem_towrite : 16'b0;
    
 
    /* STUDENT CODE ENDS */
