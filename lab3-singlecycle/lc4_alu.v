@@ -6,7 +6,72 @@
 
 `default_nettype none
 
-module lc4_decoder(     input wire [15:0] i_insn,
+module lc4_alu(input  wire [15:0] i_insn,
+               input wire [15:0]  i_pc,
+               input wire [15:0]  i_r1data,
+               input wire [15:0]  i_r2data,
+               output wire [15:0] o_result);
+      
+      wire [15:0] arith_out, logic_out, compare_out, shifter_out, const_out, jump_out;
+      wire [5:0] alu_ctl; // need to make a decoder to get this
+      
+
+      lc4_alu_decoder decoder(
+            .i_insn(i_insn),
+            .alu_ctl(alu_ctl[5:0])
+      );
+
+      
+      lc4_alu_arith arith(
+            .A(i_r1data),
+            .B(i_r2data),
+            .pc(i_pc),
+            .insn(i_insn),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(arith_out)
+      );
+      lc4_alu_logic logic(
+            .A(i_r1data),
+            .B(i_r2data),
+            .insn(i_insn),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(logic_out)
+      );
+      lc4_alu_compare compare(
+            .A(i_r1data),
+            .B(i_r2data),
+            .insn(i_insn),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(compare_out)
+      );
+      lc4_alu_shifter shift(
+            .A(i_r1data),
+            .B(i_insn),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(shifter_out)
+      );
+      lc4_alu_const const(
+            .A(i_r1data),
+            .B(i_insn),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(const_out)
+      );
+      lc4_alu_jump jump(
+            .i_r1data(i_r1data),
+            .i_pc(i_pc),
+            .i_insn(i_insn),
+            .alu_ctl(alu_ctl[2:0]),
+            .out(jump_out)
+      );
+      assign o_result = (alu_ctl[5:3] == 3'd0) ? arith_out:
+                        (alu_ctl[5:3] == 3'd1) ? logic_out:
+                        (alu_ctl[5:3] == 3'd2) ? compare_out:
+                        (alu_ctl[5:3] == 3'd3) ? shifter_out:
+                        (alu_ctl[5:3] == 3'd4) ? const_out:
+                        jump_out;
+endmodule
+
+module lc4_alu_decoder(     input wire [15:0] i_insn,
                         output wire [5:0] alu_ctl);
       assign alu_ctl[5:3] = ((i_insn[15:12] == 4'd1)
                   ||  (i_insn[15:12] == 4'd6)
@@ -157,140 +222,3 @@ endmodule
 
 
 
-module lc4_alu(input  wire [15:0] i_insn,
-               input wire [15:0]  i_pc,
-               input wire [15:0]  i_r1data,
-               input wire [15:0]  i_r2data,
-               output wire [15:0] o_result);
-      
-      wire [15:0] arith_out, logic_out, compare_out, shifter_out, const_out, jump_out;
-      wire [5:0] alu_ctl; // need to make a decoder to get this
-      
-
-      lc4_decoder decoder(
-            .i_insn(i_insn),
-            .alu_ctl(alu_ctl[5:0])
-      );
-
-      
-      lc4_alu_arith arith(
-            .A(i_r1data),
-            .B(i_r2data),
-            .pc(i_pc),
-            .insn(i_insn),
-            .alu_ctl(alu_ctl[2:0]),
-            .out(arith_out)
-      );
-      lc4_alu_logic logic(
-            .A(i_r1data),
-            .B(i_r2data),
-            .insn(i_insn),
-            .alu_ctl(alu_ctl[2:0]),
-            .out(logic_out)
-      );
-      lc4_alu_compare compare(
-            .A(i_r1data),
-            .B(i_r2data),
-            .insn(i_insn),
-            .alu_ctl(alu_ctl[2:0]),
-            .out(compare_out)
-      );
-      lc4_alu_shifter shift(
-            .A(i_r1data),
-            .B(i_insn),
-            .alu_ctl(alu_ctl[2:0]),
-            .out(shifter_out)
-      );
-      lc4_alu_const const(
-            .A(i_r1data),
-            .B(i_insn),
-            .alu_ctl(alu_ctl[2:0]),
-            .out(const_out)
-      );
-      lc4_alu_jump jump(
-            .i_r1data(i_r1data),
-            .i_pc(i_pc),
-            .i_insn(i_insn),
-            .alu_ctl(alu_ctl[2:0]),
-            .out(jump_out)
-      );
-      assign o_result = (alu_ctl[5:3] == 3'd0) ? arith_out:
-                        (alu_ctl[5:3] == 3'd1) ? logic_out:
-                        (alu_ctl[5:3] == 3'd2) ? compare_out:
-                        (alu_ctl[5:3] == 3'd3) ? shifter_out:
-                        (alu_ctl[5:3] == 3'd4) ? const_out:
-                        jump_out;
-      
-
-      /*** YOUR CODE HERE ***/
-
-endmodule
-
-module gp2 (input wire [1:0] gin, pin,
-            input wire cin,
-            output wire gout, pout, cout);
-  assign cout = gin[0] | (pin[0] & cin);
-  assign pout = (pin[0] & pin[1]);
-  assign gout = (gin[0] & pin[1]) | gin[1];
-endmodule
-
-
-module gp4(input wire [3:0] gin, pin,
-           input wire cin,
-           output wire gout, pout,
-           output wire [2:0] cout);
-  wire[1:0] gmid;
-  wire[1:0] pmid;
-  gp2 bits1to0 (.gin(gin[1:0]), .pin(pin[1:0]),
-                .cin(cin),
-                .gout(gmid[0]), .pout(pmid[0]),
-                .cout(cout[0]));
-
-  gp2 bits3to2 (.gin(gin[3:2]), .pin(pin[3:2]),
-                .cin(cout[1]),
-                .gout(gmid[1]), .pout(pmid[1]),
-                .cout(cout[2]));
-  
-  gp2 bits3to0 (.gin(gmid[1:0]), .pin(pmid[1:0]),
-                .cin(cin),
-                .gout(gout), .pout(pout),
-                .cout(cout[1]));
-
-endmodule
-
-/**
- * 16-bit Carry-Lookahead Adder
- * @param a first input
- * @param b second input
- * @param cin carry in
- * @param sum sum of a + b + carry-in
- */
-module cla16
-  (input wire [15:0]  a, b,
-   input wire         cin,
-   output wire [15:0] sum);
-  // determine bitwise gp pairs
-  wire [15:0] g, p, cout;
-  wire [3:0] gfour, pfour;
-  wire g16, p16;
-  assign cout[0] = cin;
-  genvar i;
-  for (i = 0; i < 16; i = i+1) begin
-    gp1 s(.a(a[i]), .b(b[i]), .g(g[i]), .p(p[i]));
-  end
-  // four-bit gp aggregates
-  for (i = 0; i < 4; i = i+1) begin
-    gp4 f(.gin(g[4*i+3:4*i]), .pin(p[4*i+3:4*i]), .cin(cout[4*i]),
-          .gout(gfour[i]), .pout(pfour[i]), .cout(cout[4*i+3:4*i+1]));
-  end
-  /* aggregate each four-bit gp to get 16-bit gp (no need to use g16-0 or p16-0)
-     because we are not computing carry out
-  */
-  gp4 reduce(.gin(gfour), .pin(pfour), .cin(cin),
-             .gout(g16), .pout(p16), .cout({cout[12], cout[8], cout[4]}));
-
-  for (i = 0; i < 16; i = i+1) begin
-    assign sum[i] = a[i] ^ b[i] ^ cout[i];
-  end
-
-endmodule
