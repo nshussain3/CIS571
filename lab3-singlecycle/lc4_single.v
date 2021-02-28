@@ -116,7 +116,7 @@ module lc4_processor
 
    assign o_cur_pc = pc;
    assign o_dmem_addr = ((is_load == 1) || (is_store == 1)) ? alu_output : 16'b0;                   
-   assign o_dmem_we = is_load;
+   assign o_dmem_we = is_store;
    assign o_dmem_towrite = rsrc2_val;
 
    assign test_stall = 2'b00;
@@ -127,7 +127,7 @@ module lc4_processor
    assign test_regfile_data = select_result;
    assign test_nzp_we = nzp_we;
    // nzp new bits handled in BRANCH
-   assign test_dmem_we = is_load;
+   assign test_dmem_we = o_dmem_we;
    assign test_dmem_addr = o_dmem_addr;
    assign test_dmem_data = (is_load == 1) ? i_cur_dmem_data :
                            (is_store == 1) ? o_dmem_towrite : 16'b0;
@@ -216,8 +216,8 @@ module lc4_branch_unit(input  wire clk,
    wire bu_branch_or_control, bu_nzp_reduced, bu_branch_output_sel;
    wire [2:0] bu_select_result_sign, bu_nzp_bus, bu_nzp_and;
    
-   assign bu_branch_or_control = is_branch & is_control;
-   assign bu_select_result_sign = (bu_select_result > 0) ? 3'b001:
+   assign bu_branch_or_control = is_branch | is_control;
+   assign bu_select_result_sign = ($signed(bu_select_result) > 0) ? 3'b001:
                                   (bu_select_result == 0) ? 3'b010: 3'b100;
    
    Nbit_reg nzp_reg (
