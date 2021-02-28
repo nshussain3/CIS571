@@ -238,8 +238,7 @@ module lc4_branch_unit(input  wire clk,
    assign bu_nzp_and = bu_nzp_bus & insn[11:9];
    assign bu_nzp_reduced = |bu_nzp_and;
    assign bu_nzp_passed = bu_nzp_reduced & is_branch;
-   assign bu_branch_output_sel = bu_nzp_passed | is_control;
-   assign temp_bu_next_pc = (bu_branch_output_sel == 1) ? bu_select_result : bu_pc_plus_one;
+   assign temp_bu_next_pc = (bu_nzp_passed == 1) ? bu_select_result : bu_pc_plus_one;
    assign bu_next_pc = (is_control == 1) ? bu_alu_output : temp_bu_next_pc;
    
    assign test_nzp_new_bits = bu_select_result_sign;
