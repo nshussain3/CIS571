@@ -77,26 +77,61 @@ module lc4_processor
                                   .select_pc_plus_one(select_pc_plus_one),
                                   .is_load(is_load), .is_store(is_store),
                                   .is_branch(is_branch), 
-                                  is_control_insn(is_control_insn));
+                                  .is_control_insn(is_control_insn));
                                   
-   wire [15:0] r1_src1_val, r2_src2_val;
+   wire [15:0] rsrc1_val, rsrc2_val;
    wire [15:0] select_result;
    lc4_regfile regfile (.clk(clk),
                         .gwe(gwe),
                         .rst(rst),
-                        .i_rs(r1sel), .o_rs_data(r1_src1_val),
-                        .i_rt(r2sel), .o_rt_data(r2_src2_val),
-                        .i_rd(wsel), .i_wdata(select_result), i_rd_we(regfile_we));
+                        .i_rs(r1sel), 
+                        .o_rs_data(rsrc1_val),
+                        .i_rt(r2sel), 
+                        .o_rt_data(rsrc2_val),
+                        .i_rd(wsel), 
+                        .i_wdata(select_result), 
+                        .i_rd_we(regfile_we));
    
    wire [15:0] alu_output;
    lc4_alu alu (.insn(i_cur_insn),
                 .i_pc(pc),
-                .i_r1data(r1_src1_val),
-                .i_r2data(r2_src2_val),
+                .i_r1data(rsrc1_val),
+                .i_r2data(rsrc2_val),
                 .o_result(alu_output));
    
+   wire [15:0] pc_plus_one;
+   lc4_cla pc_incr(.a(pc), .b(16'b0), .cin(1'b1), .sum(pc_plus_one));
+   assign select_result = (select_pc_plus_one == 1) ? pc_plus_one :
+                               (is_load == 1) ? i_cur_dmem_data : alu_output;
+   
+   lc4_branch_unit branch_unit(.clk(clk), .rst(rst), .gwe(gwe),
+                              .bu_pc_plus_one(pc_plus_one), 
+                              .bu_select_result(select_result),
+                              .nzp_we(nzp_we),
+                              .is_branch(is_branch),
+                              .is_control(is_control_insn),
+                              .insn(i_cur_insn),
+                              .bu_next_pc(next_pc),
+                              .test_nzp_new_bits(test_nzp_new_bits));
 
+   assign o_cur_pc = pc;
+   assign o_dmem_addr = ((is_load == 1) || (is_store == 1)) ? alu_output : 16'b0;                   
+   assign o_dmem_we = is_load;
+   assign o_dmem_towrite = rsrc2_val;
+
+   assign test_stall = 2'b00;
    assign test_cur_pc = pc;
+   assign test_cur_insn = i_cur_insn;
+   assign test_regfile_we = regfile_we;
+   assign test_regfile_wsel = wsel;
+   assign test_regfile_data = select_result;
+   assign test_nzp_we = nzp_we;
+   // nzp new bits handled in BRANCH
+   assign test_dmem_we = is_load;
+   assign test_dmem_addr = o_dmem_addr;
+   assign test_dmem_data = (is_load == 1) ? i_cur_dmem_data : o_dmem_towrite;
+   
+
    /* STUDENT CODE ENDS */
 
 
@@ -165,7 +200,7 @@ endmodule
 
 
 
-module branch_unit(input  wire clk,
+module lc4_branch_unit(input  wire clk,
                    input  wire rst,                
                    input  wire gwe,    
 
@@ -175,7 +210,8 @@ module branch_unit(input  wire clk,
                    input wire is_branch,
                    input wire is_control,
                    input wire [15:0] insn,
-                   output wire [15:0] bu_next_pc);
+                   output wire [15:0] bu_next_pc,
+                   output wire [2:0] test_nzp_new_bits);
    wire bu_branch_or_control, bu_nzp_reduced, bu_branch_output_sel;
    wire [2:0] bu_select_result_sign, bu_nzp_bus, bu_nzp_and;
    
@@ -197,6 +233,7 @@ module branch_unit(input  wire clk,
    assign bu_nzp_reduced = |bu_nzp_and;
    assign bu_branch_output_sel = bu_nzp_reduced & bu_branch_or_control;
    assign bu_next_pc = (bu_branch_output_sel == 1) ? bu_select_result : bu_pc_plus_one;
+   assign test_nzp_new_bits = bu_select_result_sign;
 endmodule
 
 
