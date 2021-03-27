@@ -4,13 +4,20 @@ module lc4_branch_unit(input  wire clk,
 
                    input wire [15:0] bu_pc_plus_one,
                    input wire [15:0] bu_select_result,
+
                    input wire nzp_we,
                    input wire is_branch,
                    input wire is_control,
                    input wire [15:0] insn,
+
+                   input wire [15:0] bu_alu_output,
+                   //input wire StallControlOutput
+
                    output wire [15:0] bu_next_pc,
                    output wire [2:0] test_nzp_new_bits,
-                   input wire [15:0] bu_alu_output);
+                   );
+
+
    wire bu_nzp_passed, bu_nzp_reduced, bu_branch_output_sel;
    wire [2:0] bu_select_result_sign, bu_nzp_bus, bu_nzp_and;
    
