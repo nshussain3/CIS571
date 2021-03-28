@@ -63,7 +63,7 @@ module lc4_processor
                                   .is_load(DX_decode_bus[19]), 
                                   .is_store(DX_decode_bus[18]),
                                   .is_branch(DX_decode_bus[17]), 
-                                  .is_control_insn(DX_decode_bus[16],
+                                  .is_control_insn(DX_decode_bus[16]),
                                   .insn(DX_decode_bus[15:0]));
 
    wire [15:0] rsrc1_val, rsrc2_val;
@@ -87,7 +87,7 @@ module lc4_processor
                 .o_result(alu_output));
    
    wire [15:0] Fout_pc_plus_one;
-   cla16 pc_incr(.a(pc), .b(16'b0), .cin(1'b1), .sum(Fout_plus_one));
+   cla16 pc_incr(.a(Fout_pc), .b(16'b0), .cin(1'b1), .sum(Fout_pc_plus_one));
 
    
 
@@ -107,7 +107,7 @@ module lc4_processor
    wire [15:0] AluABypassResult, AluBBypassResult, WMBypassResult;
    wire stallControlOutput;
    wire [15:0] stageD_IR_reg_out;
-   wire [33:0] DX_decode_bus, XM_decode_bus, MW_decode_bus, Wout_decode_bus;
+   wire [33:0] stageX_IR_input, DX_decode_bus, XM_decode_bus, MW_decode_bus, Wout_decode_bus;
    wire [15:0] next_pc, Fout_pc, DX_pc, X_pc_out;
    wire [15:0] stageX_reg_A_out, stageX_reg_B_out;
    wire [15:0] stageM_reg_O_out, stageM_reg_B_out;
@@ -159,7 +159,7 @@ module lc4_processor
    // Wout_decode_bus gets connect to main_regfile
    // DX_pc are used implicitly in register declarations
    
-   W_result = (Wout_decode_bus[19] == 1) ? i_cur_dmem_data : 
+   assign W_result = (Wout_decode_bus[19] == 1) ? i_cur_dmem_data : 
                stageW_reg_D_out;
    
    
@@ -171,7 +171,7 @@ module lc4_processor
       .in(nzp_new_bits), 
       .out(bu_nzp_bus),
       .clk(clk),
-      .we(nzp_we),
+      .we(XM_decode_bus[21]), //XM_decode_bus[21] = nzp_we
       .gwe(gwe),
       .rst(rst)
       );
@@ -180,9 +180,9 @@ module lc4_processor
    wire bu_nzp_reduced, X_branch_taken_or_control;
    wire [2:0] nzp_new_bits, bu_nzp_bus, bu_nzp_and;
 
-   assign bu_nzp_and = bu_nzp_bus & insn[11:9];
+   assign bu_nzp_and = bu_nzp_bus & XM_decode_bus[11:9]; //get sub-op from XM_decode_bus insn
    assign bu_nzp_reduced = |bu_nzp_and;
-   assign X_branch_taken_or_control = (bu_nzp_reduced & is_branch) || is_control;
+   assign X_branch_taken_or_control = (bu_nzp_reduced & XM_decode_bus[17]) || XM_decode_bus[16]; //XM_decode_bus[17] = is_branch. XM_decode_bus[16] = is_control
    assign next_pc = (X_branch_taken_or_control == 1) ? alu_output : Fout_pc_plus_one;
    // end of branch handling
 
@@ -192,12 +192,12 @@ module lc4_processor
    assign o_dmem_addr = ((Wout_decode_bus[19] == 1) || (Wout_decode_bus[18] == 1)) ? stageM_reg_O_out : 16'b0;                   
    assign o_dmem_we = Wout_decode_bus[18];
    assign o_dmem_towrite = WMBypassResult;
-   assign test_stall = 1'b0;                       // TODO !!!!!!!!!!!!!!!
+   assign test_stall = 2'b0;                       // TODO !!!!!!!!!!!!!!!
    assign test_cur_pc = Fout_pc;
    assign test_cur_insn = Wout_decode_bus[15:0];
    assign test_regfile_we = Wout_decode_bus[22];
-   assign test_regfile_wsel = wsel;
-   assign test_regfile_data = select_result;
+   assign test_regfile_wsel = Wout_decode_bus[27:25];
+   assign test_regfile_data = W_result;
    assign test_nzp_we = Wout_decode_bus[21];
    //assign test_nzp_new_bits  //assigned in stage_W_regNZP
    assign test_dmem_we = o_dmem_we;
