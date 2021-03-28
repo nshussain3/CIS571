@@ -120,7 +120,7 @@ module lc4_processor
    // intermediate stage registers
    Nbit_reg #(16, 16'h8200) stageF_regPC (.in(next_pc), .out(Fout_pc), .clk(clk), .we(~loadToUse), .gwe(gwe), .rst(rst));
 
-   Nbit_reg #(16, 16'b0) stageD_regPC (.in(Fout_pc_plus_one), .out(DX_pc), .clk(clk), .we(~loadToUse), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageD_regPC (.in(Fout_pc), .out(DX_pc), .clk(clk), .we(~loadToUse), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageD_regIR (.in(stageD_IR_input), .out(stageD_IR_reg_out), .clk(clk), .we(~loadToUse), .gwe(gwe), .rst(rst));
    Nbit_reg #(2, 2'b10) stageD_regStall (.in(stageD_reg_stall_input), .out(DX_stallCode), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
 
@@ -223,7 +223,7 @@ module lc4_processor
    assign o_dmem_we = Wout_decode_bus[18];
    assign o_dmem_towrite = WMBypassResult;
    //assign test_stall = 2'b0;        //assigned in stageW_reg_Stall       
-   assign test_cur_pc = W_pc_out - 1'd1;              // TODO !!!!!!!!!!!!!!!
+   assign test_cur_pc = W_pc_out;              
    assign test_cur_insn = Wout_decode_bus[15:0];
    assign test_regfile_we = Wout_decode_bus[22];
    assign test_regfile_wsel = Wout_decode_bus[27:25];
