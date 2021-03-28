@@ -21,13 +21,7 @@ module lc4_processor
     input  wire [15:0] i_cur_dmem_data,    // Output of data memory
     output wire        o_dmem_we,          // Data memory write enable
     output wire [15:0] o_dmem_towrite,     // Value to write to data memory
-
-    // Testbench signals are used by the testbench to verify the correctness of your datapath.
-    // Many of these signals simply export internal processor state for verification (such as the PC).
-    // Some signals are duplicate output signals for clarity of purpose.
-    //
-    // Don't forget to include these in your schematic!
-
+    
     output wire [1:0]  test_stall,         // Testbench: is this a stall cycle? (don't compare the test values)
     output wire [15:0] test_cur_pc,        // Testbench: program counter
     output wire [15:0] test_cur_insn,      // Testbench: instruction bits
@@ -66,31 +60,33 @@ module lc4_processor
 
 
    /* STUDENT CODE BEGINS */
-   wire [2:0] r1sel, r2sel, wsel;
-   wire r1re, r2re, regfile_we, nzp_we, select_pc_plus_one, 
-      is_load, is_store, is_branch, is_control_insn;
-   lc4_decoder processor_decoder (.insn(i_cur_insn),
-                                  .r1sel(r1sel), .r1re(r1re),
-                                  .r2sel(r2sel), .r2re(r2re),
-                                  .wsel(wsel), .regfile_we(regfile_we),
-                                  .nzp_we(nzp_we), 
-                                  .select_pc_plus_one(select_pc_plus_one),
-                                  .is_load(is_load), .is_store(is_store),
-                                  .is_branch(is_branch), 
-                                  .is_control_insn(is_control_insn));
-                                  
+
+   lc4_decoder processor_decoder (.r1sel(DX_decode_bus[33:31]), 
+                                  .r2sel(DX_decode_bus[30:28]),
+                                  .wsel(DX_decode_bus[27:25]),
+                                  .r1re(DX_decode_bus[24]),
+                                  .r2re(DX_decode_bus[23]),
+                                  .regfile_we(DX_decode_bus[22]),
+                                  .nzp_we(DX_decode_bus[21]), 
+                                  .select_pc_plus_one(DX_decode_bus[20]),
+                                  .is_load(DX_decode_bus[19]), 
+                                  .is_store(DX_decode_bus[18]),
+                                  .is_branch(DX_decode_bus[17]), 
+                                  .is_control_insn(DX_decode_bus[16],
+                                  .insn(DX_decode_bus[15:0]));
+
    wire [15:0] rsrc1_val, rsrc2_val;
    wire [15:0] select_result;
-   lc4_regfile regfile (.clk(clk),
+   lc4_regfile main_regfile (.clk(clk),
                         .gwe(gwe),
                         .rst(rst),
-                        .i_rs(r1sel), 
+                        .i_rs(DX_decode_bus[33:31]), 
                         .o_rs_data(rsrc1_val),
-                        .i_rt(r2sel), 
+                        .i_rt(DX_decode_bus[30:28]), 
                         .o_rt_data(rsrc2_val),
-                        .i_rd(wsel), 
+                        .i_rd(Wout_decode_bus[27:25]), 
                         .i_wdata(select_result), 
-                        .i_rd_we(regfile_we));
+                        .i_rd_we(Wout_decode_bus[22]));
    
    wire [15:0] alu_output;
    lc4_alu alu (.i_insn(i_cur_insn),
@@ -102,18 +98,70 @@ module lc4_processor
    wire [15:0] pc_plus_one;
    cla16 pc_incr(.a(pc), .b(16'b0), .cin(1'b1), .sum(pc_plus_one));
    assign select_result = (select_pc_plus_one == 1) ? pc_plus_one :
-                               (is_load == 1) ? i_cur_dmem_data : alu_output;
+                               (is_load == 1) ? i_cur_dmem_data : 
+                               alu_output;
    
-   lc4_branch_unit branch_unit(.clk(clk), .rst(rst), .gwe(gwe),
-                              .bu_pc_plus_one(pc_plus_one), 
-                              .bu_select_result(select_result),
-                              .nzp_we(nzp_we),
-                              .is_branch(is_branch),
-                              .is_control(is_control_insn),
-                              .insn(i_cur_insn),
-                              .bu_next_pc(next_pc),
-                              .test_nzp_new_bits(test_nzp_new_bits),
-                              .bu_alu_output(alu_output));
+   // lc4_branch_unit branch_unit(.clk(clk), .rst(rst), .gwe(gwe),
+   //                            .bu_pc_plus_one(pc_plus_one), 
+   //                            .bu_select_result(select_result),
+   //                            .nzp_we(nzp_we),
+   //                            .is_branch(is_branch),
+   //                            .is_control(is_control_insn),
+   //                            .insn(i_cur_insn),
+   //                            .bu_alu_output(alu_output),
+   //                            .bu_next_pc(next_pc),
+   //                            .test_nzp_new_bits(test_nzp_new_bits));
+
+
+   // Wires needed to pipeline bypass
+   wire [15:0] AluABypassResult, AluBBypassResult, WMBypassResult;
+   wire stallControlOutput;
+   wire [15:0] stageD_IR_reg_out;
+   wire [33:0] DX_decode_bus, XM_decode_bus, MW_decode_bus, Wout_decode_bus;
+   wire [15:0] FD_pc, DX_pc;
+   wire [15:0] stageX_reg_A_out, stageX_reg_B_out;
+   wire [15:0] stageM_reg_O_out, stageM_reg_B_out;
+   wire [15:0] stageW_reg_O_out, stageW_reg_D_out;
+   
+   // intermediate stage registers
+   Nbit_reg #(16, 16'b0) stageD_regPC (.in(FD_pc), .out(DX_pc), .clk(clk), .we(~stallControlOutput), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageD_regIR (.in(i_cur_insn), .out(stageD_IR_reg_out), .clk(clk), .we(~stallControlOutput), .gwe(gwe), .rst(rst));
+
+   Nbit_reg #(16, 16'b0) stageX_regPC (.in(DX_pc), .out(X_pc_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageX_regA (.in(rsrc1_val), .out(stageX_reg_A_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageX_regB (.in(rsrc2_val), .out(stageX_reg_B_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(34, 34'b0) stageX_regIR (.in(DX_decode_bus), .out(XM_decode_bus), .clk(clk), .we(), .gwe(gwe), .rst(rst));
+
+   Nbit_reg #(16, 16'b0) stageM_regO (.in(alu_output), .out(stageM_reg_O_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageM_regB (.in(AluBBypassResult), .out(stageM_reg_B_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(34, 34'b0) stageM_regIR (.in(XM_decode_bus), .out(MW_decode_bus), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+
+   Nbit_reg #(16, 16'b0) stageW_regO (.in(stageM_reg_O_out), .out(stageW_reg_O_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageW_regD (.in(i_cur_dmem_data), .out(stageW_reg_D_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(34, 34'b0) stageW_regIR (.in(MW_decode_bus), .out(Wout_decode_bus), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+
+
+
+   assign AluABypassResult =  (XM_decode_bus[33:31] == MW_decode_bus[27:25]) ? stageM_reg_O_out:  // should not be return two bit, should return real result of mux
+                              (XM_decode_bus[33:31] == Wout_decode_bus[27:25]) ? select_result:
+                              stageX_reg_A_out;
+                              
+   assign AluBBypassResult =  (XM_decode_bus[30:28] == MW_decode_bus[27:25]) ? stageM_reg_O_out:  // should not be return two bit, should return real result of mux
+                              (XM_decode_bus[30:28] == Wout_decode_bus[27:25]) ? select_result:
+                              stageX_reg_B_out;
+
+   assign WMBypassResult = ((MW_decode_bus[18]) && (Wout_decode_bus[27:25] == MW_decode_bus[30:28])) ? select_result:
+                           stageM_reg_B_out;
+   assign stallControlOutput =  (X.IR.Operation == LOAD) && 
+                           ( (D.IR.RegSrc1 == X.IR.RegDest) || 
+                              ((D.IR.RegSrc2 == X.IR.RegDest) && (D.IR.Op != STORE)) );
+   
+   assign DX_decode_bus[15:0] = stageD_IR_reg_out;
+   assign stageX_IR_input = (stallControlOutput == 0) ? DX_decode_bus:
+                              {34{1'b0}};
+   
+   
+
 
    assign o_cur_pc = pc;
    assign o_dmem_addr = ((is_load == 1) || (is_store == 1)) ? alu_output : 16'b0;                   
@@ -135,6 +183,14 @@ module lc4_processor
    
 
    /* STUDENT CODE ENDS */
+
+
+
+
+
+
+
+
 
 
    /* Add $display(...) calls in the always block below to
@@ -199,3 +255,4 @@ module lc4_processor
    end
 `endif
 endmodule
+
