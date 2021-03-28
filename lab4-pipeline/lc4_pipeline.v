@@ -105,7 +105,8 @@ module lc4_processor
 
    // Wires needed to pipeline bypass
    wire [15:0] AluABypassResult, AluBBypassResult, WMBypassResult;
-   wire stallControlOutput;
+   wire loadToUse;
+   wire [1:0] stageD_reg_stall_input, DX_stallCode, XM_stallCode, MW_stallCode;
    wire [15:0] stageD_IR_input, stageD_IR_reg_out;
    wire [15:0] stageX_reg_A_input, stageX_reg_B_input;
    wire [33:0] stageX_IR_input, DX_decode_bus, XM_decode_bus, MW_decode_bus, Wout_decode_bus;
@@ -117,28 +118,31 @@ module lc4_processor
    wire [2:0] MW_nzp_bits;
    
    // intermediate stage registers
-   Nbit_reg #(16, 16'h8200) stageF_regPC (.in(next_pc), .out(Fout_pc), .clk(clk), .we(~stallControlOutput), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'h8200) stageF_regPC (.in(next_pc), .out(Fout_pc), .clk(clk), .we(~loadToUse), .gwe(gwe), .rst(rst));
 
-   Nbit_reg #(16, 16'b0) stageD_regPC (.in(Fout_pc_plus_one), .out(DX_pc), .clk(clk), .we(~stallControlOutput), .gwe(gwe), .rst(rst));
-   Nbit_reg #(16, 16'b0) stageD_regIR (.in(stageD_IR_input), .out(stageD_IR_reg_out), .clk(clk), .we(~stallControlOutput), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageD_regPC (.in(Fout_pc_plus_one), .out(DX_pc), .clk(clk), .we(~loadToUse), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageD_regIR (.in(stageD_IR_input), .out(stageD_IR_reg_out), .clk(clk), .we(~loadToUse), .gwe(gwe), .rst(rst));
+   Nbit_reg #(2, 2'b10) stageD_regStall (.in(stageD_reg_stall_input), .out(DX_stallCode), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
 
    Nbit_reg #(16, 16'b0) stageX_regPC (.in(DX_pc), .out(X_pc_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageX_regA (.in(stageX_reg_A_input), .out(stageX_reg_A_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageX_regB (.in(stageX_reg_B_input), .out(stageX_reg_B_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(34, 34'b0) stageX_regIR (.in(stageX_IR_input), .out(XM_decode_bus), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
-
+   Nbit_reg #(2, 2'b10) stageX_regStall (.in(DX_stallCode), .out(XM_stallCode), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+ 
    Nbit_reg #(16, 16'b0) stageM_regPC (.in(X_pc_out), .out(MW_pc), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageM_regO (.in(alu_output), .out(stageM_reg_O_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageM_regB (.in(AluBBypassResult), .out(stageM_reg_B_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(34, 34'b0) stageM_regIR (.in(XM_decode_bus), .out(MW_decode_bus), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(3, 3'b0)   stageM_regNZP (.in(nzp_new_bits), .out(MW_nzp_bits), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
-   
+   Nbit_reg #(2, 2'b10) stageM_regStall (.in(XM_stallCode), .out(MW_stallCode), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+
    Nbit_reg #(16, 16'b0) stageW_regPC (.in(MW_pc), .out(W_pc_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageW_regO (.in(stageM_reg_O_out), .out(stageW_reg_O_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageW_regD (.in(i_cur_dmem_data), .out(stageW_reg_D_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(34, 34'b0) stageW_regIR (.in(MW_decode_bus), .out(Wout_decode_bus), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(3, 3'b0)   stageW_regNZP (.in(MW_nzp_bits), .out(test_nzp_new_bits), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
-
+   Nbit_reg #(2, 2'b10) stageW_regStall (.in(MW_stallCode), .out(test_stall), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
 
    assign stageX_reg_A_input = ((Wout_decode_bus[27:25] == DX_decode_bus[33:31]) && Wout_decode_bus[22])
                                        ? W_result : rsrc1_val;              
@@ -157,12 +161,16 @@ module lc4_processor
                            stageM_reg_B_out;
    
 
-   assign stallControlOutput =  (XM_decode_bus[19]) && 
+   assign loadToUse =  (XM_decode_bus[19]) && 
                            ( (DX_decode_bus[33:31] == XM_decode_bus[27:25]) || 
                               ((DX_decode_bus[30:28] == XM_decode_bus[27:25]) && (~DX_decode_bus[18])) );
    
    assign DX_decode_bus[15:0] = stageD_IR_reg_out;
 
+
+   assign stageD_reg_stall_input = (X_branch_taken_or_control == 1) ? 2'd2 : 
+                                       (loadToUse == 1) ? 2'd3 :
+                                       2'd0;
 
    
    // XM_decode_bus, MW_decode_bus, are used implicitly in register declarations
@@ -173,7 +181,7 @@ module lc4_processor
                stageW_reg_O_out;
    
    
-   assign stageX_IR_input = ((stallControlOutput | X_branch_taken_or_control) == 1) ? {34{1'b0}}:
+   assign stageX_IR_input = ((loadToUse | X_branch_taken_or_control) == 1) ? {34{1'b0}}:
                              DX_decode_bus;
    assign stageD_IR_input = (X_branch_taken_or_control == 1) ? {16{1'b0}} : i_cur_insn;
 
@@ -214,7 +222,7 @@ module lc4_processor
    assign o_dmem_addr = ((Wout_decode_bus[19] == 1) || (Wout_decode_bus[18] == 1)) ? stageM_reg_O_out : 16'b0;                   
    assign o_dmem_we = Wout_decode_bus[18];
    assign o_dmem_towrite = WMBypassResult;
-   assign test_stall = 2'b0;                       // TODO !!!!!!!!!!!!!!!
+   //assign test_stall = 2'b0;        //assigned in stageW_reg_Stall       
    assign test_cur_pc = W_pc_out - 1'd1;              // TODO !!!!!!!!!!!!!!!
    assign test_cur_insn = Wout_decode_bus[15:0];
    assign test_regfile_we = Wout_decode_bus[22];
