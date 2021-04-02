@@ -110,11 +110,12 @@ module lc4_processor
    wire [15:0] stageD_IR_input, stageD_IR_reg_out;
    wire [15:0] stageX_reg_A_input, stageX_reg_B_input;
    wire [33:0] stageX_IR_input, DX_decode_bus, XM_decode_bus, MW_decode_bus, Wout_decode_bus;
-   wire [15:0] next_pc, Fout_pc, DX_pc, X_pc_out, MW_pc, W_pc_out;
    wire [15:0] stageX_reg_A_out, stageX_reg_B_out;
    wire [15:0] stageM_reg_O_out, stageM_reg_B_out, stageM_reg_O_input;
    wire [15:0] stageW_reg_O_out, stageW_reg_D_out;
+   wire [15:0] stageW_regDmemData_input;
    wire [15:0] W_result;
+   wire [15:0] next_pc, Fout_pc, DX_pc, X_pc_out, MW_pc, W_pc_out;
    wire [2:0] MW_nzp_bits;
    
    // intermediate stage registers
@@ -143,7 +144,11 @@ module lc4_processor
    Nbit_reg #(34, 34'b0) stageW_regIR (.in(MW_decode_bus), .out(Wout_decode_bus), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(3, 3'b0)   stageW_regNZP (.in(MW_nzp_bits), .out(test_nzp_new_bits), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(2, 2'b10) stageW_regStall (.in(MW_stallCode), .out(test_stall), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
-
+   Nbit_reg #(1, 1'b0) stageW_regDmemWe (.in(o_dmem_we), .out(test_dmem_we), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageW_regDmemAddr (.in(o_dmem_addr), .out(test_dmem_addr), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageW_regDmemData (.in(stageW_regDmemData_input), .out(test_dmem_data), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   
+   
    assign stageX_reg_A_input = ((Wout_decode_bus[27:25] == DX_decode_bus[33:31]) && Wout_decode_bus[22])
                                        ? W_result : rsrc1_val;              
    assign stageX_reg_B_input = ((Wout_decode_bus[27:25] == DX_decode_bus[30:28]) && Wout_decode_bus[22])
@@ -157,12 +162,12 @@ module lc4_processor
                               ((XM_decode_bus[30:28] == Wout_decode_bus[27:25]) && Wout_decode_bus[22] == 1) ? W_result:
                               stageX_reg_B_out;
 
-   assign WMBypassResult = ((MW_decode_bus[18]) && (Wout_decode_bus[27:25] == MW_decode_bus[30:28])) ? W_result:
+   assign WMBypassResult = ((MW_decode_bus[18]) && (Wout_decode_bus[27:25] == MW_decode_bus[30:28])) ? W_result:  //MW_decode_bus[18] = is_store
                            stageM_reg_B_out;
    
 
-   assign loadToUse =  (XM_decode_bus[19]) && 
-                           ( (DX_decode_bus[33:31] == XM_decode_bus[27:25]) || 
+   assign loadToUse = (XM_decode_bus[19]) &&  //XM_decode_bus[19] = is_load
+                           ( (DX_decode_bus[33:31] == XM_decode_bus[27:25]) ||
                               ((DX_decode_bus[30:28] == XM_decode_bus[27:25]) && (~DX_decode_bus[18])) );
    
    assign DX_decode_bus[15:0] = stageD_IR_reg_out;
@@ -188,7 +193,7 @@ module lc4_processor
 
    assign stageM_reg_O_input = (XM_decode_bus[16] == 1) ? DX_pc : alu_output; // need to do this because trap returns pc+1 for R7. Don't know why, but this makes things work
    //SPENCER YOU GOATED
-   
+
    // handle branching and control signals
    assign nzp_new_bits = ($signed(alu_output) > 0) ? 3'b001:
                                   (alu_output == 0) ? 3'b010: 3'b100;
@@ -215,8 +220,8 @@ module lc4_processor
 
 
    assign o_cur_pc = Fout_pc;
-   assign o_dmem_addr = ((Wout_decode_bus[19] == 1) || (Wout_decode_bus[18] == 1)) ? stageM_reg_O_out : 16'b0;                   
-   assign o_dmem_we = Wout_decode_bus[18];
+   assign o_dmem_addr = ((MW_decode_bus[19] == 1) || (MW_decode_bus[18] == 1)) ? stageM_reg_O_out : 16'b0;                   
+   assign o_dmem_we = MW_decode_bus[18];
    assign o_dmem_towrite = WMBypassResult;
    //assign test_stall = 2'b0;        //assigned in stageW_reg_Stall       
    assign test_cur_pc = W_pc_out;              
@@ -226,13 +231,15 @@ module lc4_processor
    assign test_regfile_data = W_result;
    assign test_nzp_we = Wout_decode_bus[21];
    //assign test_nzp_new_bits  //assigned in stage_W_regNZP
-   assign test_dmem_we = o_dmem_we;
-   assign test_dmem_addr = o_dmem_addr;
-   assign test_dmem_data = (Wout_decode_bus[19] == 1) ? i_cur_dmem_data :
-                           (Wout_decode_bus[18] == 1) ? o_dmem_towrite : 16'b0; //MUST FIX ISSUE WITH LINE ABOVE
+   
+   // assign test_dmem_we = o_dmem_we;          // assigned in stageW_regDmemWe
+   // assign test_dmem_addr = o_dmem_addr;      // assigned in stageW_regDmemAddr
+ 
+   assign stageW_regDmemData_input = (MW_decode_bus[19] == 1) ? i_cur_dmem_data :
+                           (MW_decode_bus[18] == 1) ? o_dmem_towrite : 16'b0;
    
    /* STUDENT CODE ENDS */
-
+   
 
 
 
