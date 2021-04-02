@@ -112,12 +112,10 @@ module lc4_processor
    wire [33:0] stageX_IR_input, DX_decode_bus, XM_decode_bus, MW_decode_bus, Wout_decode_bus;
    wire [15:0] next_pc, Fout_pc, DX_pc, X_pc_out, MW_pc, W_pc_out;
    wire [15:0] stageX_reg_A_out, stageX_reg_B_out;
-   wire [15:0] stageM_reg_O_out, stageM_reg_B_out;
+   wire [15:0] stageM_reg_O_out, stageM_reg_B_out, stageM_reg_O_input;
    wire [15:0] stageW_reg_O_out, stageW_reg_D_out;
    wire [15:0] W_result;
    wire [2:0] MW_nzp_bits;
-
-   assign DX_stallCode = (X_branch_taken_or_control == 1) ? 2'd2 : stageD_reg_stall_out;
    
    // intermediate stage registers
    Nbit_reg #(16, 16'h8200) stageF_regPC (.in(next_pc), .out(Fout_pc), .clk(clk), .we(~loadToUse), .gwe(gwe), .rst(rst));
@@ -133,7 +131,7 @@ module lc4_processor
    Nbit_reg #(2, 2'b10) stageX_regStall (.in(DX_stallCode), .out(XM_stallCode), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
  
    Nbit_reg #(16, 16'b0) stageM_regPC (.in(X_pc_out), .out(MW_pc), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
-   Nbit_reg #(16, 16'b0) stageM_regO (.in(alu_output), .out(stageM_reg_O_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) stageM_regO (.in(stageM_reg_O_input), .out(stageM_reg_O_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageM_regB (.in(AluBBypassResult), .out(stageM_reg_B_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(34, 34'b0) stageM_regIR (.in(XM_decode_bus), .out(MW_decode_bus), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(3, 3'b0)   stageM_regNZP (.in(nzp_new_bits), .out(MW_nzp_bits), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
@@ -151,7 +149,7 @@ module lc4_processor
    assign stageX_reg_B_input = ((Wout_decode_bus[27:25] == DX_decode_bus[30:28]) && Wout_decode_bus[22])
                                        ? W_result : rsrc2_val;
    
-   assign AluABypassResult =  ((XM_decode_bus[33:31] == MW_decode_bus[27:25]) && MW_decode_bus[22] == 1) ? stageM_reg_O_out:  // should not be return two bit, should return real result of mux
+   assign AluABypassResult =  ((XM_decode_bus[33:31] == MW_decode_bus[27:25]) && (MW_decode_bus[22] == 1)) ? stageM_reg_O_out:  // should not be return two bit, should return real result of mux
                               ((XM_decode_bus[33:31] == Wout_decode_bus[27:25]) && Wout_decode_bus[22] == 1) ? W_result:
                               stageX_reg_A_out;
                               
@@ -174,21 +172,23 @@ module lc4_processor
                                        (loadToUse == 1) ? 2'd3 :
                                        2'd0;
 
-   
+   assign DX_stallCode = (X_branch_taken_or_control == 1) ? 2'd2 : stageD_reg_stall_out;
+
    // XM_decode_bus, MW_decode_bus, are used implicitly in register declarations
    // Wout_decode_bus gets connect to main_regfile
    // DX_pc are used implicitly in register declarations
    
    assign W_result = (Wout_decode_bus[19] == 1) ? stageW_reg_D_out :  //Wout_decode_bus[19] = is_load
-               stageW_reg_O_out;
+                     stageW_reg_O_out;
    
    
    assign stageX_IR_input = ((loadToUse | X_branch_taken_or_control) == 1) ? {34{1'b0}}:
                              DX_decode_bus;
    assign stageD_IR_input = (X_branch_taken_or_control == 1) ? {16{1'b0}} : i_cur_insn;
 
-
-
+   assign stageM_reg_O_input = (XM_decode_bus[16] == 1) ? DX_pc : alu_output; // need to do this because trap returns pc+1 for R7. Don't know why, but this makes things work
+   //SPENCER YOU GOATED
+   
    // handle branching and control signals
    assign nzp_new_bits = ($signed(alu_output) > 0) ? 3'b001:
                                   (alu_output == 0) ? 3'b010: 3'b100;
@@ -211,12 +211,6 @@ module lc4_processor
    assign X_branch_taken_or_control = (bu_nzp_reduced & XM_decode_bus[17]) || XM_decode_bus[16]; //XM_decode_bus[17] = is_branch. XM_decode_bus[16] = is_control
    assign next_pc = (X_branch_taken_or_control == 1) ? alu_output : Fout_pc_plus_one;
    // end of branch handling
-
-
-
-
-
-
 
 
 
