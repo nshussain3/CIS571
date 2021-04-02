@@ -162,22 +162,23 @@ module lc4_processor
                               ((XM_decode_bus[30:28] == Wout_decode_bus[27:25]) && Wout_decode_bus[22] == 1) ? W_result:
                               stageX_reg_B_out;
 
-   assign WMBypassResult = ((MW_decode_bus[18]) && (Wout_decode_bus[27:25] == MW_decode_bus[30:28])) ? W_result:  //MW_decode_bus[18] = is_store
+   assign WMBypassResult = ((MW_decode_bus[18]) && (MW_decode_bus[30:28] == Wout_decode_bus[33:31])) ? W_result:  //MW_decode_bus[18] = is_store
                            stageM_reg_B_out;
    
 
-   assign loadToUse = (XM_decode_bus[19]) &&  //XM_decode_bus[19] = is_load
+   assign loadToUse = (XM_decode_bus[19]) &&   //XM_decode_bus[19] = is_load
                            ( (DX_decode_bus[33:31] == XM_decode_bus[27:25]) ||
-                              ((DX_decode_bus[30:28] == XM_decode_bus[27:25]) && (~DX_decode_bus[18])) );
+                              ((DX_decode_bus[23]) && (DX_decode_bus[30:28] == XM_decode_bus[27:25]) && (~DX_decode_bus[18])) );
    
+
    assign DX_decode_bus[15:0] = stageD_IR_reg_out;
 
 
    assign stageD_reg_stall_input = (X_branch_taken_or_control == 1) ? 2'd2 : 
-                                       (loadToUse == 1) ? 2'd3 :
                                        2'd0;
 
-   assign DX_stallCode = (X_branch_taken_or_control == 1) ? 2'd2 : stageD_reg_stall_out;
+   assign DX_stallCode = (loadToUse == 1) ? 2'd3 :
+                        (X_branch_taken_or_control == 1) ? 2'd2 : stageD_reg_stall_out;
 
    // XM_decode_bus, MW_decode_bus, are used implicitly in register declarations
    // Wout_decode_bus gets connect to main_regfile
@@ -235,8 +236,8 @@ module lc4_processor
    // assign test_dmem_we = o_dmem_we;          // assigned in stageW_regDmemWe
    // assign test_dmem_addr = o_dmem_addr;      // assigned in stageW_regDmemAddr
  
-   assign stageW_regDmemData_input = (MW_decode_bus[19] == 1) ? i_cur_dmem_data :
-                           (MW_decode_bus[18] == 1) ? o_dmem_towrite : 16'b0;
+   assign stageW_regDmemData_input = (MW_decode_bus[19] == 1) ? i_cur_dmem_data :   //MW_decode_bus[19] == is_load
+                           (MW_decode_bus[18] == 1) ? WMBypassResult : 16'b0;       //MW_decode_bus[18] == is_store
    
    /* STUDENT CODE ENDS */
    
