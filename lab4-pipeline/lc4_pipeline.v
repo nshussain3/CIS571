@@ -162,7 +162,8 @@ module lc4_processor
                               ((XM_decode_bus[30:28] == Wout_decode_bus[27:25]) && Wout_decode_bus[22] == 1) ? W_result:
                               stageX_reg_B_out;
 
-   assign WMBypassResult = ((MW_decode_bus[18]) && (MW_decode_bus[30:28] == Wout_decode_bus[33:31])) ? W_result:  //MW_decode_bus[18] = is_store
+   assign WMBypassResult = ((MW_decode_bus[18]) && (MW_decode_bus[30:28] == Wout_decode_bus[27:25]) && 
+                           (Wout_decode_bus[22])) ? W_result:  //MW_decode_bus[18] = is_store
                            stageM_reg_B_out;
    
 
