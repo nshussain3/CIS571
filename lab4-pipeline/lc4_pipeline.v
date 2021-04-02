@@ -168,8 +168,9 @@ module lc4_processor
    
 
    assign loadToUse = (XM_decode_bus[19]) &&   //XM_decode_bus[19] = is_load
-                           ( (DX_decode_bus[33:31] == XM_decode_bus[27:25]) ||
-                              ((DX_decode_bus[23]) && (DX_decode_bus[30:28] == XM_decode_bus[27:25]) && (~DX_decode_bus[18])) );
+                           ( ((DX_decode_bus[24]) && (DX_decode_bus[33:31] == XM_decode_bus[27:25])) ||
+                              ((DX_decode_bus[23]) && (DX_decode_bus[30:28] == XM_decode_bus[27:25]) && (~DX_decode_bus[18])) 
+                              || (DX_decode_bus[15:12]==4'b0) );
    
 
    assign DX_decode_bus[15:0] = stageD_IR_reg_out;
@@ -196,9 +197,17 @@ module lc4_processor
    assign stageM_reg_O_input = (XM_decode_bus[16] == 1) ? DX_pc : alu_output; // need to do this because trap returns pc+1 for R7. Don't know why, but this makes things work
    //SPENCER YOU GOATED
 
+
    // handle branching and control signals
-   assign nzp_new_bits = ($signed(alu_output) > 0) ? 3'b001:
+   wire bu_nzp_reduced, X_branch_taken_or_control;
+   wire [2:0] nzp_new_bits, bu_nzp_bus, bu_nzp_and;
+
+   wire[2:0] nzp_new_bits_alu, nzp_new_bits_ld;
+   assign nzp_new_bits_alu = ($signed(alu_output) > 0) ? 3'b001:
                                   (alu_output == 0) ? 3'b010: 3'b100;
+   assign nzp_new_bits_ld = ($signed(i_cur_dmem_data) > 0) ? 3'b001:
+                                  (i_cur_dmem_data == 0) ? 3'b010: 3'b100;                           
+   assign nzp_new_bits = ((MW_decode_bus[19]==1) && (XM_stallCode==2'd3)) ? nzp_new_bits_ld : nzp_new_bits_alu;
 
    Nbit_reg nzp_reg (
       .in(nzp_new_bits), 
@@ -210,8 +219,7 @@ module lc4_processor
       );
    defparam nzp_reg.n = 3;
 
-   wire bu_nzp_reduced, X_branch_taken_or_control;
-   wire [2:0] nzp_new_bits, bu_nzp_bus, bu_nzp_and;
+   
 
    assign bu_nzp_and = bu_nzp_bus & XM_decode_bus[11:9]; //get sub-op from XM_decode_bus insn
    assign bu_nzp_reduced = |bu_nzp_and;
