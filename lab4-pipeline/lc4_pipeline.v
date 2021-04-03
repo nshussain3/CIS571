@@ -86,21 +86,9 @@ module lc4_processor
                 .i_r2data(AluBBypassResult),
                 .o_result(alu_output));
    
+
    wire [15:0] Fout_pc_plus_one;
    cla16 pc_incr(.a(Fout_pc), .b(16'b0), .cin(1'b1), .sum(Fout_pc_plus_one));
-
-   
-
-   // lc4_branch_unit branch_unit(.clk(clk), .rst(rst), .gwe(gwe),
-   //                            .bu_pc_plus_one(pc_plus_one), 
-   //                            .bu_select_result(select_result),
-   //                            .nzp_we(nzp_we),
-   //                            .is_branch(is_branch),
-   //                            .is_control(is_control_insn),
-   //                            .insn(i_cur_insn),
-   //                            .bu_alu_output(alu_output),
-   //                            .bu_next_pc(next_pc),
-   //                            .test_nzp_new_bits(test_nzp_new_bits));
 
 
    // Wires needed to pipeline bypass
@@ -109,14 +97,14 @@ module lc4_processor
    wire [1:0] stageD_reg_stall_input, stageD_reg_stall_out, DX_stallCode, XM_stallCode, MW_stallCode;
    wire [15:0] stageD_IR_input, stageD_IR_reg_out;
    wire [15:0] stageX_reg_A_input, stageX_reg_B_input;
-   wire [33:0] stageX_IR_input, DX_decode_bus, XM_decode_bus, MW_decode_bus, Wout_decode_bus;
    wire [15:0] stageX_reg_A_out, stageX_reg_B_out;
-   wire [15:0] stageM_reg_O_out, stageM_reg_B_out, stageM_reg_O_input;
-   wire [15:0] stageW_reg_O_out, stageW_reg_D_out;
+   wire [15:0] stageM_reg_O_input, stageM_reg_O_out, stageM_reg_B_out;
    wire [15:0] stageW_regDmemData_input;
+   wire [15:0] stageW_reg_O_out, stageW_reg_D_out;
    wire [15:0] W_result;
    wire [15:0] next_pc, Fout_pc, DX_pc, X_pc_out, MW_pc, W_pc_out;
-   wire [2:0] MW_nzp_bits;
+   wire [33:0] stageX_IR_input, DX_decode_bus, XM_decode_bus, MW_decode_bus, Wout_decode_bus;
+   wire [2:0] MW_nzp_bits, stageW_regNZP_input;
    
    // intermediate stage registers
    Nbit_reg #(16, 16'h8200) stageF_regPC (.in(next_pc), .out(Fout_pc), .clk(clk), .we(~loadToUse), .gwe(gwe), .rst(rst));
@@ -148,7 +136,30 @@ module lc4_processor
    Nbit_reg #(16, 16'b0) stageW_regDmemAddr (.in(o_dmem_addr), .out(test_dmem_addr), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageW_regDmemData (.in(stageW_regDmemData_input), .out(test_dmem_data), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    
+
+   assign DX_decode_bus[15:0] = stageD_IR_reg_out; // putting pure instruction in decode bus
+
+   // handling stalls and flushes
+   assign loadToUse = (XM_decode_bus[19]) &&   //XM_decode_bus[19] = is_load
+                           ( ((DX_decode_bus[24]) && (DX_decode_bus[33:31] == XM_decode_bus[27:25])) ||
+                              ((DX_decode_bus[23]) && (DX_decode_bus[30:28] == XM_decode_bus[27:25]) && (~DX_decode_bus[18])) 
+                              || (DX_decode_bus[15:12]==4'b0) );
    
+
+   assign stageD_reg_stall_input = (X_branch_taken_or_control == 1) ? 2'd2 : 
+                                       2'd0;
+
+   assign DX_stallCode = (loadToUse == 1) ? 2'd3 :
+                        (X_branch_taken_or_control == 1) ? 2'd2 : 
+                        stageD_reg_stall_out;
+   //insert NOP if necessary
+   assign stageD_IR_input = (X_branch_taken_or_control == 1) ? {16{1'b0}} : i_cur_insn;
+   assign stageX_IR_input = ((loadToUse | X_branch_taken_or_control) == 1) ? {34{1'b0}}:
+                             DX_decode_bus;
+
+   
+
+   // bypassing
    assign stageX_reg_A_input = ((Wout_decode_bus[27:25] == DX_decode_bus[33:31]) && Wout_decode_bus[22])
                                        ? W_result : rsrc1_val;              
    assign stageX_reg_B_input = ((Wout_decode_bus[27:25] == DX_decode_bus[30:28]) && Wout_decode_bus[22])
@@ -165,49 +176,28 @@ module lc4_processor
    assign WMBypassResult = ((MW_decode_bus[18]) && (MW_decode_bus[30:28] == Wout_decode_bus[27:25]) && 
                            (Wout_decode_bus[22])) ? W_result:  //MW_decode_bus[18] = is_store
                            stageM_reg_B_out;
-   
-
-   assign loadToUse = (XM_decode_bus[19]) &&   //XM_decode_bus[19] = is_load
-                           ( ((DX_decode_bus[24]) && (DX_decode_bus[33:31] == XM_decode_bus[27:25])) ||
-                              ((DX_decode_bus[23]) && (DX_decode_bus[30:28] == XM_decode_bus[27:25]) && (~DX_decode_bus[18])) 
-                              || (DX_decode_bus[15:12]==4'b0) );
-   
-
-   assign DX_decode_bus[15:0] = stageD_IR_reg_out;
-
-
-   assign stageD_reg_stall_input = (X_branch_taken_or_control == 1) ? 2'd2 : 
-                                       2'd0;
-
-   assign DX_stallCode = (loadToUse == 1) ? 2'd3 :
-                        (X_branch_taken_or_control == 1) ? 2'd2 : stageD_reg_stall_out;
 
    // XM_decode_bus, MW_decode_bus, are used implicitly in register declarations
    // Wout_decode_bus gets connect to main_regfile
    // DX_pc are used implicitly in register declarations
    
+   
+   // need to do this because trap returns pc+1 for R7. 
+   assign stageM_reg_O_input = (XM_decode_bus[16] == 1) ? DX_pc : alu_output; 
+   
+   // we don't know what the nzp bits for what we loaded are until stage M, so can't fully trust MW_nzp_bits
+   assign stageW_regNZP_input = (MW_decode_bus[19] == 1) ? nzp_new_bits_ld : MW_nzp_bits; 
+  
+   //FINAL OUTPUT TO GO INTO REGISTERS
    assign W_result = (Wout_decode_bus[19] == 1) ? stageW_reg_D_out :  //Wout_decode_bus[19] = is_load
                      stageW_reg_O_out;
    
    
-   assign stageX_IR_input = ((loadToUse | X_branch_taken_or_control) == 1) ? {34{1'b0}}:
-                             DX_decode_bus;
-   assign stageD_IR_input = (X_branch_taken_or_control == 1) ? {16{1'b0}} : i_cur_insn;
-
-   assign stageM_reg_O_input = (XM_decode_bus[16] == 1) ? DX_pc : alu_output; // need to do this because trap returns pc+1 for R7. Don't know why, but this makes things work
-
-   wire [2:0] stageW_regNZP_input;
-   assign stageW_regNZP_input = ((MW_decode_bus[19]==1)) ? nzp_new_bits_ld : MW_nzp_bits;
-   // assign stageW_regNZP_input = MW_nzp_bits;
    
-   
-   
-   
-   // handle branching and control signals
+   // calculating nzp and branching in execute stage
    wire bu_nzp_reduced, X_branch_taken_or_control;
    wire [2:0] nzp_new_bits_alu, nzp_new_bits_ld, nzp_new_bits_trap;
    wire [2:0] nzp_new_bits, bu_nzp_bus, bu_nzp_and;
-
 
    assign nzp_new_bits_alu = ($signed(alu_output) > 0) ? 3'b001:
                                   (alu_output == 0) ? 3'b010: 3'b100;
@@ -221,7 +211,6 @@ module lc4_processor
                         ((MW_decode_bus[19]==1) && (XM_stallCode==2'd3) ) ? nzp_new_bits_ld : 
                         nzp_new_bits_alu;
 
-
    Nbit_reg nzp_reg (
       .in(nzp_new_bits), 
       .out(bu_nzp_bus),
@@ -232,8 +221,6 @@ module lc4_processor
       );
    defparam nzp_reg.n = 3;
 
-   
-
    assign bu_nzp_and = bu_nzp_bus & XM_decode_bus[11:9]; //get sub-op from XM_decode_bus insn
    assign bu_nzp_reduced = |bu_nzp_and;
    assign X_branch_taken_or_control = (bu_nzp_reduced & XM_decode_bus[17]) || XM_decode_bus[16]; //XM_decode_bus[17] = is_branch. XM_decode_bus[16] = is_control
@@ -242,6 +229,7 @@ module lc4_processor
 
 
 
+   //TEST VALUES
    assign o_cur_pc = Fout_pc;
    assign o_dmem_addr = ((MW_decode_bus[19] == 1) || (MW_decode_bus[18] == 1)) ? stageM_reg_O_out : 16'b0;                   
    assign o_dmem_we = MW_decode_bus[18];
@@ -263,12 +251,6 @@ module lc4_processor
    
    /* STUDENT CODE ENDS */
    
-
-
-
-
-
-
 
 
 
