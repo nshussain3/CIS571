@@ -142,7 +142,7 @@ module lc4_processor
    Nbit_reg #(16, 16'b0) stageW_regO (.in(stageM_reg_O_out), .out(stageW_reg_O_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageW_regD (.in(i_cur_dmem_data), .out(stageW_reg_D_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(34, 34'b0) stageW_regIR (.in(MW_decode_bus), .out(Wout_decode_bus), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
-   Nbit_reg #(3, 3'b0)   stageW_regNZP (.in(MW_nzp_bits), .out(test_nzp_new_bits), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+   Nbit_reg #(3, 3'b0)   stageW_regNZP (.in(stageW_regNZP_input), .out(test_nzp_new_bits), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(2, 2'b10) stageW_regStall (.in(MW_stallCode), .out(test_stall), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(1, 1'b0) stageW_regDmemWe (.in(o_dmem_we), .out(test_dmem_we), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) stageW_regDmemAddr (.in(o_dmem_addr), .out(test_dmem_addr), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
@@ -195,19 +195,32 @@ module lc4_processor
    assign stageD_IR_input = (X_branch_taken_or_control == 1) ? {16{1'b0}} : i_cur_insn;
 
    assign stageM_reg_O_input = (XM_decode_bus[16] == 1) ? DX_pc : alu_output; // need to do this because trap returns pc+1 for R7. Don't know why, but this makes things work
-   //SPENCER YOU GOATED
 
-
+   wire [2:0] stageW_regNZP_input;
+   assign stageW_regNZP_input = ((MW_decode_bus[19]==1)) ? nzp_new_bits_ld : MW_nzp_bits;
+   // assign stageW_regNZP_input = MW_nzp_bits;
+   
+   
+   
+   
    // handle branching and control signals
    wire bu_nzp_reduced, X_branch_taken_or_control;
+   wire [2:0] nzp_new_bits_alu, nzp_new_bits_ld, nzp_new_bits_trap;
    wire [2:0] nzp_new_bits, bu_nzp_bus, bu_nzp_and;
 
-   wire[2:0] nzp_new_bits_alu, nzp_new_bits_ld;
+
    assign nzp_new_bits_alu = ($signed(alu_output) > 0) ? 3'b001:
                                   (alu_output == 0) ? 3'b010: 3'b100;
    assign nzp_new_bits_ld = ($signed(i_cur_dmem_data) > 0) ? 3'b001:
-                                  (i_cur_dmem_data == 0) ? 3'b010: 3'b100;                           
-   assign nzp_new_bits = ((MW_decode_bus[19]==1) && (XM_stallCode==2'd3)) ? nzp_new_bits_ld : nzp_new_bits_alu;
+                                  (i_cur_dmem_data == 0) ? 3'b010: 3'b100;  
+
+   assign nzp_new_bits_trap = ($signed(X_pc_out) > 0) ? 3'b001:
+                                  (X_pc_out == 0) ? 3'b010: 3'b100;  
+
+   assign nzp_new_bits = (XM_decode_bus[15:12] == 4'b1111) ? nzp_new_bits_trap :  
+                        ((MW_decode_bus[19]==1) && (XM_stallCode==2'd3) ) ? nzp_new_bits_ld : 
+                        nzp_new_bits_alu;
+
 
    Nbit_reg nzp_reg (
       .in(nzp_new_bits), 
@@ -274,10 +287,17 @@ module lc4_processor
     * when we run the grading scripts.
     */
 `ifndef NDEBUG
+   integer i = 0;
    always @(posedge gwe) begin
       // $display("%d %h %h %h %h %h", $time, f_pc, d_pc, e_pc, m_pc, test_cur_pc);
       // if (o_dmem_we)
       //   $display("%d STORE %h <= %h", $time, o_dmem_addr, o_dmem_towrite);
+
+      
+      // if ((MW_decode_bus[19]==1) && (XM_stallCode==2'd3) && (i < 100)) begin
+      //    $display("time: %d. nzp_new_bits_alu = %d. nzp_new_bits_ld = %d.", $time, nzp_new_bits_alu, nzp_new_bits_ld);
+      //    i=i+1;
+      // end
 
       // Start each $display() format string with a %d argument for time
       // it will make the output easier to read.  Use %b, %h, and %d
