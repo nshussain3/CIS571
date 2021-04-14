@@ -4,8 +4,10 @@
 // set this to 1 to exit after the first failure
 `define EXIT_AFTER_FIRST_ERROR 0
 
+`define PRINT_ALL_REG_WRITES 0
+
 // change this to adjust how many errors are printed out
-`define MAX_ERRORS_TO_DISPLAY 15
+`define MAX_ERRORS_TO_DISPLAY 40
 
 // set this to 1 to create a waveform file for easier debugging
 `define GENERATE_VCD 0
@@ -271,12 +273,45 @@ module test_processor;
             // regfile_in
             if (verify_regfile_we && verify_regfile_in !== test_regfile_in) begin
                if (errors <= `MAX_ERRORS_TO_DISPLAY) begin 
-                  $display( "Error at cycle %d: regfile_in should be %h (but was %h)", 
-                            num_cycles, verify_regfile_in, test_regfile_in);
+                  $display( "Error at cycle %d: regfile_in should be %h (but was %h), insn was %h", 
+                            num_cycles, verify_regfile_in, test_regfile_in, test_insn);
                end
                errors = errors + 1;
             end
+
+            if (`PRINT_ALL_REG_WRITES == 1) begin 
+               if (errors <= `MAX_ERRORS_TO_DISPLAY) begin 
+                  if (test_regfile_we) begin
+                     $display("Cycle: %d.   R%d = %h",
+                     num_cycles, test_regfile_reg, test_regfile_in);
+                  end
+               end 
+            end
             
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             // verify_nzp_we
             if (verify_nzp_we !== test_nzp_we) begin
                if (errors <= `MAX_ERRORS_TO_DISPLAY) begin 
