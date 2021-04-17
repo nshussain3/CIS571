@@ -88,7 +88,7 @@ module lc4_processor(input wire         clk,             // main clock
    assign pipeA_stageD_regIR_in = (pipeSwitch == 1) ? pipeB_stageD_IR_reg_out : pipeA_stageD_IR_input;
    assign pipeA_stageD_regStall_in = (pipeSwitch == 1) ? pipeB_stageD_reg_stall_out : pipeA_stageD_reg_stall_input;
    
-
+   
 
    // Pipe_A Stage Registers
    Nbit_reg #(16, 16'b0) pipeA_stageD_regPC (.in(pipeA_stageD_regPC_in), .out(pipeA_DX_pc), .clk(clk), .we(~pipeA_loadToUse), .gwe(gwe), .rst(rst));
@@ -162,22 +162,22 @@ module lc4_processor(input wire         clk,             // main clock
 
    // bypassing
    assign pipeA_AluABypassResult =  
+      ((pipeA_XM_decode_bus[33:31] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out: 
       ((pipeA_XM_decode_bus[33:31] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
-      ((pipeA_XM_decode_bus[33:31] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:  
-      ((pipeA_XM_decode_bus[33:31] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:
-      ((pipeA_XM_decode_bus[33:31] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:                        
+      ((pipeA_XM_decode_bus[33:31] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result: 
+      ((pipeA_XM_decode_bus[33:31] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:              
       pipeA_stageX_reg_A_out;
                               
    assign pipeA_AluBBypassResult =
-      ((pipeA_XM_decode_bus[30:28] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
       ((pipeA_XM_decode_bus[30:28] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:  
-      ((pipeA_XM_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:
-      ((pipeA_XM_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:                        
+      ((pipeA_XM_decode_bus[30:28] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
+      ((pipeA_XM_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:  
+      ((pipeA_XM_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:                     
       pipeA_stageX_reg_B_out;
 
    assign pipeA_WMBypassResult = 
-      ((pipeA_MW_decode_bus[18]) && (pipeA_Wout_decode_bus[22]) && (pipeA_MW_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25])) ? pipeA_W_result:  //MW_decode_bus[18] = is_store
       ((pipeA_MW_decode_bus[18]) && (pipeB_Wout_decode_bus[22]) && (pipeA_MW_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25])) ? pipeB_W_result:  //MW_decode_bus[18] = is_store
+      ((pipeA_MW_decode_bus[18]) && (pipeA_Wout_decode_bus[22]) && (pipeA_MW_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25])) ? pipeA_W_result:  //MW_decode_bus[18] = is_store
       pipeA_stageM_reg_B_out;
 
    // XM_decode_bus, MW_decode_bus, are used implicitly in register declarations
@@ -234,7 +234,7 @@ module lc4_processor(input wire         clk,             // main clock
    assign pipeA_X_branch_taken_or_control = (pipeA_bu_nzp_reduced & pipeA_XM_decode_bus[17]) || pipeA_XM_decode_bus[16]; //XM_decode_bus[17] = is_branch. XM_decode_bus[16] = is_control
    // end of branch handling
 
-
+   //MM BYPASS!!!
 
    // Pipe B starts
    lc4_decoder pipeB_decoder (.r1sel(pipeB_DX_decode_bus[33:31]), 
@@ -267,8 +267,8 @@ module lc4_processor(input wire         clk,             // main clock
    assign pipeB_stageD_regStall_in = (pipeSwitch == 1) ? pipeA_stageD_reg_stall_input : pipeB_stageD_reg_stall_input;
 
    // Pipe_B Stage Registers
-   Nbit_reg #(16, 16'b0) pipeB_stageD_regPC (.in(pipeB_stageD_regPC_in), .out(pipeB_DX_pc), .clk(clk), .we(~(pipeB_loadToUse | pipeB_superscalar_stall)), .gwe(gwe), .rst(rst));
-   Nbit_reg #(16, 16'b0) pipeB_stageD_regIR (.in(pipeB_stageD_regIR_in), .out(pipeB_stageD_IR_reg_out), .clk(clk), .we(~(pipeB_loadToUse | pipeB_superscalar_stall)), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) pipeB_stageD_regPC (.in(pipeB_stageD_regPC_in), .out(pipeB_DX_pc), .clk(clk), .we(~(pipeB_loadToUse)), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) pipeB_stageD_regIR (.in(pipeB_stageD_regIR_in), .out(pipeB_stageD_IR_reg_out), .clk(clk), .we(~(pipeB_loadToUse)), .gwe(gwe), .rst(rst));
    Nbit_reg #(2, 2'b10) pipeB_stageD_regStall (.in(pipeB_stageD_regStall_in), .out(pipeB_stageD_reg_stall_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
 
    Nbit_reg #(16, 16'b0) pipeB_stageX_regPC (.in(pipeB_DX_pc), .out(pipeB_X_pc_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
@@ -321,24 +321,25 @@ module lc4_processor(input wire         clk,             // main clock
                               || (pipeB_DX_decode_bus[15:12]==4'b0) );
    
 
-   assign pipeB_stageD_reg_stall_input = (pipeA_loadToUse == 1) ? 2'd1 :
-                                       (pipeB_X_branch_taken_or_control == 1) ? 2'd2 : 
+   assign pipeB_stageD_reg_stall_input = (pipeB_X_branch_taken_or_control == 1) ? 2'd2 : 
                                        2'd0;
 
-   assign pipeB_DX_stallCode = (pipeA_loadToUse == 1) ? 2'd1 :
+   assign pipeB_DX_stallCode = (pipeB_superscalar_stall == 1) ? 2'd1 :
                         (pipeB_loadToUse == 1) ? 2'd3 :
                         (pipeB_X_branch_taken_or_control == 1) ? 2'd2 : 
                         pipeB_stageD_reg_stall_out;
+
    //insert NOP if necessary
    assign pipeB_stageD_IR_input = (pipeB_X_branch_taken_or_control == 1) ? {16{1'b0}} : i_cur_insn_B;
-   assign pipeB_stageX_IR_input = ((pipeB_loadToUse | pipeB_X_branch_taken_or_control) == 1) ? {34{1'b0}}:
+   assign pipeB_stageX_IR_input = ((pipeB_loadToUse | pipeB_X_branch_taken_or_control | pipeB_superscalar_stall) == 1) ? {34{1'b0}}:
                              pipeB_DX_decode_bus;
 
    
    wire pipeSwitch, pipeB_superscalar_stall, decode_dependence;
-   assign decode_dependence = ( (pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[33:31]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[24] == 1) ||
+   assign decode_dependence = (( (pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[33:31]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[24] == 1) ||
                               ( (pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[30:28]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[23] == 1) ||
-                              ( (pipeA_DX_decode_bus[18] || pipeA_DX_decode_bus[19]) && ((pipeB_DX_decode_bus[18] || pipeB_DX_decode_bus[19])) ) 
+                              ( (pipeA_DX_decode_bus[18] || pipeA_DX_decode_bus[19]) && ((pipeB_DX_decode_bus[18] || pipeB_DX_decode_bus[19]))
+                               ) )
                               ? 1'b1 : 1'b0;
    assign pipeSwitch = decode_dependence | pipeB_loadToUse;
    assign pipeB_superscalar_stall = decode_dependence | pipeA_loadToUse;
@@ -347,22 +348,22 @@ module lc4_processor(input wire         clk,             // main clock
    
    // bypassing
    assign pipeB_AluABypassResult = 
-      ((pipeB_XM_decode_bus[33:31] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
-      ((pipeB_XM_decode_bus[33:31] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:  
-      ((pipeB_XM_decode_bus[33:31] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:
-      ((pipeB_XM_decode_bus[33:31] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:                        
+      ((pipeB_XM_decode_bus[33:31] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:
+      ((pipeB_XM_decode_bus[33:31] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:    
+      ((pipeB_XM_decode_bus[33:31] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:          
+      ((pipeB_XM_decode_bus[33:31] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:              
       pipeB_stageX_reg_A_out;
                               
    assign pipeB_AluBBypassResult =
-      ((pipeB_XM_decode_bus[30:28] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
       ((pipeB_XM_decode_bus[30:28] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:  
-      ((pipeB_XM_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:
-      ((pipeB_XM_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:                        
-      pipeA_stageX_reg_B_out;
+      ((pipeB_XM_decode_bus[30:28] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
+      ((pipeB_XM_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:
+      ((pipeB_XM_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:                    
+      pipeB_stageX_reg_B_out;
 
    assign pipeB_WMBypassResult = 
-      ((pipeB_MW_decode_bus[18]) && (pipeA_Wout_decode_bus[22]) && (pipeB_MW_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25])) ? pipeA_W_result:  //MW_decode_bus[18] = is_store
       ((pipeB_MW_decode_bus[18]) && (pipeB_Wout_decode_bus[22]) && (pipeB_MW_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25])) ? pipeB_W_result:  //MW_decode_bus[18] = is_store
+      ((pipeB_MW_decode_bus[18]) && (pipeA_Wout_decode_bus[22]) && (pipeB_MW_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25])) ? pipeA_W_result:  //MW_decode_bus[18] = is_store
       pipeB_stageM_reg_B_out;
 
    // XM_decode_bus, MW_decode_bus, are used implicitly in register declarations
@@ -452,8 +453,8 @@ module lc4_processor(input wire         clk,             // main clock
 
    wire [15:0] next_pc, pipeA_D_pc_in, pipeB_D_pc_in, next_pc_incr_option;
 
-   assign pipeA_D_pc_in = Fout_pc_plus_one;
-   assign pipeB_D_pc_in = Fout_pc_plus_two;
+   assign pipeA_D_pc_in = Fout_pc;
+   assign pipeB_D_pc_in = Fout_pc_plus_one;
    assign next_pc_incr_option =  (pipeA_loadToUse) ? Fout_pc : 
                                  (pipeSwitch == 1) ? Fout_pc_plus_one : 
                                  Fout_pc_plus_two;
@@ -511,7 +512,40 @@ module lc4_processor(input wire         clk,             // main clock
     * You may also use if statements inside the always block
     * to conditionally print out information.
     */
+
+  
+   
    always @(posedge gwe) begin
+      if (next_pc < 16'h8220) begin
+         //$display("pipeA_alu_output = %h. pipeA_stageM_reg_O_out = %h. pipeB_stageM_reg_O_out = %h. A_XM_r1 = %d. B_MW_rd = %d. we = %d", 
+            //pipeA_alu_output, pipeA_stageM_reg_O_out, pipeB_stageM_reg_O_out, pipeA_XM_decode_bus[33:31], pipeA_MW_decode_bus[27:25], pipeA_MW_decode_bus[22] == 1);
+      end
+      
+
+      // assign pipeA_AluABypassResult =  
+      // ((pipeA_XM_decode_bus[33:31] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
+      // ((pipeA_XM_decode_bus[33:31] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:  
+      // ((pipeA_XM_decode_bus[33:31] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:
+      // ((pipeA_XM_decode_bus[33:31] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:                        
+      // pipeA_stageX_reg_A_out;
+
+   
+                              
+   // assign pipeA_AluBBypassResult =
+   //    ((pipeA_XM_decode_bus[30:28] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
+   //    ((pipeA_XM_decode_bus[30:28] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:  
+   //    ((pipeA_XM_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:
+   //    ((pipeA_XM_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:                        
+   //    pipeA_stageX_reg_B_out;
+
+
+      // $display("pipeswitch = %d. dependence = %d", pipeSwitch, decode_dependence);
+      // $display("pipeA_DX_decode_bus: %b", pipeA_DX_decode_bus);
+      // $display("pipeB_DX_decode_bus: %b", pipeB_DX_decode_bus);
+      
+     
+     
+
       // $display("%d %h %h %h %h %h", $time, f_pc, d_pc, e_pc, m_pc, test_cur_pc);
       // if (o_dmem_we)
       //   $display("%d STORE %h <= %h", $time, o_dmem_addr, o_dmem_towrite);
