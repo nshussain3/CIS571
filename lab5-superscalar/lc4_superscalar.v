@@ -50,7 +50,17 @@ module lc4_processor(input wire         clk,             // main clock
    /* END DO NOT MODIFY THIS CODE */
 
 
+   /* 
+   TO-DO:
+   - single memory insn can be in either A or B double check
+   - MM BYPASS
+   - BRANCHING (SQUASH LOGIC)
+   - Load-to-Use must be updated
+   - Reread LTU stalling (important note) section
 
+
+
+   */
 
 
 
@@ -344,8 +354,6 @@ module lc4_processor(input wire         clk,             // main clock
    assign pipeSwitch = decode_dependence | pipeB_loadToUse;
    assign pipeB_superscalar_stall = decode_dependence | pipeA_loadToUse;
 
-
-   
    // bypassing
    assign pipeB_AluABypassResult = 
       ((pipeB_XM_decode_bus[33:31] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:
