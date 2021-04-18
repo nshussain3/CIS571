@@ -300,6 +300,17 @@ module lc4_processor(input wire         clk,             // main clock
          )
       );
 
+   wire test1, test2;
+   assign test1 = (  ((pipeA_DX_decode_bus[24]) && (pipeA_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25]))  //  reading from DX_r1 and XM_dest = DX_r1
+               &&      
+               ~(pipeB_XM_decode_bus[22] == 1 && (pipeA_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25]))      //no XbDa_r1 dependence
+            ) ;
+         
+   assign test2 = (  ((pipeA_DX_decode_bus[23]) && (pipeA_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])) // reading from DX_r2 and XM_dest = DX_r2 && DX isn't a store (that would be a WM (load to store) bypass)
+               &&
+               ~(pipeB_XM_decode_bus[22] == 1 && (pipeA_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]))   // no XbDa_r2 dependence
+            ) ;
+
    assign pipeA_loadToUse_XaDa = (
          (pipeA_XM_decode_bus[19]) //XM_decode_bus[19] = is_load
          && 
@@ -320,11 +331,13 @@ module lc4_processor(input wire         clk,             // main clock
    assign decode_dependence = (
          (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa)
          &&
-         (  ((pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[33:31]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[24] == 1) 
+         (  ((pipeB_DX_decode_bus[15:12] == 4'b0) && (pipeA_DX_decode_bus[21] == 1)) // branches are dependent on nzp bits if they are written
+            ||
+            ((pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[33:31]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[24] == 1) 
             ||
             ( (pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[30:28]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[23] == 1) 
             ||
-            ( (pipeA_DX_decode_bus[18] || pipeA_DX_decode_bus[19]) && ((pipeB_DX_decode_bus[18] || pipeB_DX_decode_bus[19]))) 
+            ( (pipeA_DX_decode_bus[18] | pipeA_DX_decode_bus[19]) && (pipeB_DX_decode_bus[18] | pipeB_DX_decode_bus[19]) ) 
          )
       );
 
@@ -360,11 +373,12 @@ module lc4_processor(input wire         clk,             // main clock
 // handling stall codes and flushes
    assign pipeA_loadToUse = pipeA_loadToUse_XaDa | pipeA_loadToUse_XbDa;
 
-   assign pipeA_stageD_reg_stall_input = (pipeA_X_branch_taken_or_control == 1) ? 2'd2 : 
+   assign pipeA_stageD_reg_stall_input = (pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) ? 2'd2 : 
                                        2'd0;
 
-   assign pipeA_DX_stallCode = (pipeA_loadToUse == 1) ? 2'd3 :
-                        (pipeA_X_branch_taken_or_control == 1) ? 2'd2 : 
+   assign pipeA_DX_stallCode = 
+                        (pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) ? 2'd2 : 
+                        (pipeA_loadToUse == 1) ? 2'd3 :
                         pipeA_stageD_reg_stall_out;
                   
          //insert NOP if necessary
@@ -372,20 +386,19 @@ module lc4_processor(input wire         clk,             // main clock
    assign pipeA_stageX_IR_input = ((pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control | pipeA_loadToUse) == 1) ? 
                                        {34{1'b0}} : pipeA_DX_decode_bus;
 
-
-
    //start pipe B
    assign pipeB_loadToUse = pipeB_loadToUse_XaDb | pipeB_loadToUse_XbDb;
    assign pipeB_superscalar_stall = pipeA_loadToUse | decode_dependence;
    assign pipeSwitch = decode_dependence | pipeB_loadToUse;
    
 
-   assign pipeB_stageD_reg_stall_input = (pipeB_X_branch_taken_or_control == 1) ? 2'd2 : 
+   assign pipeB_stageD_reg_stall_input = (pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) ? 2'd2 : 
                                        2'd0;
 
-   assign pipeB_DX_stallCode = (pipeB_superscalar_stall == 1) ? 2'd1 :
+   assign pipeB_DX_stallCode = 
+                        (pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) ? 2'd2 :
+                        (pipeB_superscalar_stall == 1) ? 2'd1 :
                         (pipeB_loadToUse == 1) ? 2'd3 :
-                        (pipeB_X_branch_taken_or_control == 1) ? 2'd2 : 
                         pipeB_stageD_reg_stall_out;
    assign pipeB_XM_stallCode = (pipeA_X_branch_taken_or_control == 1) ? 2'd2 : pipeB_X_stallCode_out;
 
@@ -396,34 +409,7 @@ module lc4_processor(input wire         clk,             // main clock
                                           
    assign pipeB_stageM_IR_input = (pipeA_X_branch_taken_or_control == 1)  ? {34{1'b0}} : pipeB_XM_decode_bus;
    
-
-
-
    
-   
-
-// handling stalls and flushes
-   
-   
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
    // bypassing
    assign pipeB_AluABypassResult = 
       ((pipeB_XM_decode_bus[33:31] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:   // 
@@ -458,7 +444,7 @@ module lc4_processor(input wire         clk,             // main clock
    
    
    // need to do this because trap returns pc+1 for R7 (MAY NOT BE CORRECT)
-   assign pipeB_stageM_reg_O_input = (pipeB_XM_decode_bus[16] == 1) ? pipeB_DX_pc : pipeB_alu_output; 
+   assign pipeB_stageM_reg_O_input = (pipeB_XM_decode_bus[16] == 1) ? pipeA_DX_pc : pipeB_alu_output; 
    
    // we don't know what the nzp bits for what we loaded are until stage M, so can't fully trust MW_nzp_bits
    assign pipeB_stageW_regNZP_input = (pipeB_MW_decode_bus[19] == 1) ? pipeB_nzp_new_bits_ld : pipeB_MW_nzp_bits; 
@@ -634,31 +620,11 @@ module lc4_processor(input wire         clk,             // main clock
    
    always @(posedge gwe) begin
       if (next_pc < 16'h8220) begin
-         //$display("pipeA_alu_output = %h. pipeA_stageM_reg_O_out = %h. pipeB_stageM_reg_O_out = %h. A_XM_r1 = %d. B_MW_rd = %d. we = %d", 
-            //pipeA_alu_output, pipeA_stageM_reg_O_out, pipeB_stageM_reg_O_out, pipeA_XM_decode_bus[33:31], pipeA_MW_decode_bus[27:25], pipeA_MW_decode_bus[22] == 1);
+         $display("DX_IR = %h %h. decode_dependence = %d. pipeA_loadToUse_XaDa = %d. test1 = %d. test2 = %d", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], decode_dependence, pipeA_loadToUse_XaDa, test1, test2);
       end
       
 
-      // assign pipeA_AluABypassResult =  
-      // ((pipeA_XM_decode_bus[33:31] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
-      // ((pipeA_XM_decode_bus[33:31] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:  
-      // ((pipeA_XM_decode_bus[33:31] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:
-      // ((pipeA_XM_decode_bus[33:31] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:                        
-      // pipeA_stageX_reg_A_out;
-
-   
-                              
-   // assign pipeA_AluBBypassResult =
-   //    ((pipeA_XM_decode_bus[30:28] == pipeA_MW_decode_bus[27:25]) && (pipeA_MW_decode_bus[22] == 1)) ? pipeA_stageM_reg_O_out:  
-   //    ((pipeA_XM_decode_bus[30:28] == pipeB_MW_decode_bus[27:25]) && (pipeB_MW_decode_bus[22] == 1)) ? pipeB_stageM_reg_O_out:  
-   //    ((pipeA_XM_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25]) && pipeA_Wout_decode_bus[22] == 1) ? pipeA_W_result:
-   //    ((pipeA_XM_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25]) && pipeB_Wout_decode_bus[22] == 1) ? pipeB_W_result:                        
-   //    pipeA_stageX_reg_B_out;
-
-
-      // $display("pipeswitch = %d. dependence = %d", pipeSwitch, decode_dependence);
-      // $display("pipeA_DX_decode_bus: %b", pipeA_DX_decode_bus);
-      // $display("pipeB_DX_decode_bus: %b", pipeB_DX_decode_bus);
+      
       
      
      
