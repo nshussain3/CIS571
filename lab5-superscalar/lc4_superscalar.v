@@ -302,7 +302,9 @@ module lc4_processor(input wire         clk,             // main clock
    assign pipeA_loadToUse_XbDa = ( 
          (pipeB_XM_decode_bus[19]) 
          &&   
-         XbDa_dependence
+         XbDa_dependence 
+         && 
+         ~branch_taken
       );
 
    
@@ -319,6 +321,8 @@ module lc4_processor(input wire         clk,             // main clock
          pipeA_XM_decode_bus[19] //XM_decode_bus[19] = is_load
          && 
          XaDa_dependence  
+         && 
+         ~branch_taken
       );
 
    assign DaDb_dependence = 
@@ -336,6 +340,8 @@ module lc4_processor(input wire         clk,             // main clock
          (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa)
          &&
          DaDb_dependence
+         &&
+         ~branch_taken
       );
 
 
@@ -352,6 +358,8 @@ module lc4_processor(input wire         clk,             // main clock
          (pipeB_XM_decode_bus[19])  //XM_decode_bus[19] = is_load
          &&   
          XbDb_dependence
+         &&
+          ~branch_taken
       );
       
       
@@ -368,6 +376,8 @@ module lc4_processor(input wire         clk,             // main clock
          (pipeA_XM_decode_bus[19])  //XM_decode_bus[19] = is_load
          &&  
          XaDb_dependence
+         &&
+         ~branch_taken
       );
 
 
@@ -625,7 +635,7 @@ module lc4_processor(input wire         clk,             // main clock
   
    
    always @(posedge gwe) begin
-      if (next_pc > 16'h8320 && next_pc < 16'h8330) begin
+      if (next_pc > 16'h8280 && next_pc < 16'h82a0) begin
          //$display("DX_IR = %h %h. decode_dependence = %d. pipeA_loadToUse_XaDa = %d. test1 = %d. test2 = %d. A_SC = %d. B_SC = %d", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], decode_dependence, pipeA_loadToUse_XaDa, test1, test2, pipeA_DX_stallCode, pipeB_DX_stallCode);
          $display("DX_IR = %h %h. XM_IR = %h %h. MW_IR = %h %h. Wout_IR = %h %h. A_SC = %d. B_SC = %d.", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], pipeA_XM_decode_bus[15:0], pipeB_XM_decode_bus[15:0], pipeA_MW_decode_bus[15:0], pipeB_MW_decode_bus[15:0], pipeA_Wout_decode_bus[15:0], pipeB_Wout_decode_bus[15:0], pipeA_DX_stallCode, pipeB_DX_stallCode);
       end
