@@ -288,94 +288,91 @@ module lc4_processor(input wire         clk,             // main clock
 
 //STALLING
    wire pipeA_loadToUse_XbDa, pipeA_loadToUse_XaDa, decode_dependence, pipeB_loadToUse_XbDb, pipeB_loadToUse_XaDb;
-   wire DaDb_dependence, XbDa_dependence, XaDa_dependence, XbDb_dependence, XaDb_dependence;
+   wire XbDaR1_dependence, XbDaR2_dependence, XbDaBr_dependence;
+   wire XaDaR1_dependence, XaDaR2_dependence, XaDaBr_dependence;
+   wire DaDbR1_dependence, DaDbR2_dependence, DaDbBr_dependence, DaDbMem_dependence;
+   wire XbDbR1_dependence, XbDbR2_dependence, XbDbBr_dependence;
+   wire XaDbR1_dependence, XaDbR2_dependence, XaDbBr_dependence;
    wire pipeA_loadToUse, pipeB_loadToUse;
    wire pipeSwitch, pipeB_superscalar_stall;
 
-   assign XbDa_dependence = 
-         (  ((pipeA_DX_decode_bus[24]) && (pipeB_XM_decode_bus[22]) && (pipeA_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25])) // (Da.r1.re == 1) && (Xb.we == 1) && (Da.r1 == Xb.wsel)
-            ||
-            ((pipeA_DX_decode_bus[23]) && (pipeB_XM_decode_bus[22]) && (pipeA_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])) // (Da.r2.re == 1) && (Xb.we == 1) && (Da.r2 == Xb.wsel) && (Da isn't a store)
-            || 
-            ((pipeA_DX_decode_bus[15:12]==4'b0) && (pipeA_DX_decode_bus[15:0] != 16'b0) && (pipeB_XM_decode_bus[21] == 1))
-         );
+   assign XbDaR1_dependence = ((pipeA_DX_decode_bus[24]) && (pipeB_XM_decode_bus[22]) && (pipeA_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25])); // (Da.r1.re == 1) && (Xb.we == 1) && (Da.r1 == Xb.wsel)
+   assign XbDaR2_dependence = ((pipeA_DX_decode_bus[23]) && (pipeB_XM_decode_bus[22]) && (pipeA_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])); // (Da.r2.re == 1) && (Xb.we == 1) && (Da.r2 == Xb.wsel) && (Da isn't a store)
+   assign XbDaBr_dependence = ((pipeA_DX_decode_bus[15:12]==4'b0) && (pipeA_DX_decode_bus[15:0] != 16'b0) && (pipeB_XM_decode_bus[21] == 1)); // XbDa branch dependence
    assign pipeA_loadToUse_XbDa = ( 
          (pipeB_XM_decode_bus[19]) 
          &&   
-         XbDa_dependence 
+         (XbDaR1_dependence || XbDaR2_dependence || XbDaBr_dependence)
          && 
          ~branch_taken
       );
 
-   
-   assign XaDa_dependence = 
-         (  ((pipeA_DX_decode_bus[24]) && (pipeA_XM_decode_bus[22]) && (pipeA_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25]))  //  (Da.r1.re == 1) && (Xa.we == 1) && (Da.r1 == Xa.wsel)
-            ||
-            ((pipeA_DX_decode_bus[23]) && (pipeA_XM_decode_bus[22]) &&(pipeA_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])) // (Da.r2.re == 1) && (Xa.we == 1) && (Da.r2 == Xa.wsel) && (Da isn't a store)
-            || 
-            ((pipeA_DX_decode_bus[15:12]==4'b0) && (pipeA_DX_decode_bus[15:0] != 16'b0) && (pipeA_XM_decode_bus[21] == 1))    // All branches are dependent on loads b/c of nzp bits
-         );
+   assign XaDaR1_dependence = ((pipeA_DX_decode_bus[24]) && (pipeA_XM_decode_bus[22]) && (pipeA_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25]));  //  (Da.r1.re == 1) && (Xa.we == 1) && (Da.r1 == Xa.wsel)
+   assign XaDaR2_dependence = ((pipeA_DX_decode_bus[23]) && (pipeA_XM_decode_bus[22]) &&(pipeA_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])); // (Da.r2.re == 1) && (Xa.we == 1) && (Da.r2 == Xa.wsel) && (Da isn't a store)
+   assign XaDaBr_dependence = ((pipeA_DX_decode_bus[15:12]==4'b0) && (pipeA_DX_decode_bus[15:0] != 16'b0) && (pipeA_XM_decode_bus[21] == 1));
    assign pipeA_loadToUse_XaDa = (
-         ~XbDa_dependence
-         &&
          pipeA_XM_decode_bus[19] //XM_decode_bus[19] = is_load
          && 
-         XaDa_dependence  
+         (
+            (XaDaR1_dependence && ~XbDaR1_dependence)
+            ||
+            (XaDaR2_dependence && ~XbDaR2_dependence)
+            ||
+            (XaDaBr_dependence && ~XbDaBr_dependence)
+         )
          && 
          ~branch_taken
       );
 
-   assign DaDb_dependence = 
-      (  
-         ((pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[33:31]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[24] == 1) // (DA.W == DB.R1) && (DA.WE == 1) && (DB.r1.re == 1)
-         ||
-         ( (pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[30:28]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[23] == 1 && pipeB_DX_decode_bus[18] == 0) // (DA.W == DB.R2) && (DA.WE == 1) && (DB.r2.re == 1) && (B is not store because then we MM bypass)
-         ||
-         ( (pipeA_DX_decode_bus[18] | pipeA_DX_decode_bus[19]) && (pipeB_DX_decode_bus[18] | pipeB_DX_decode_bus[19]) ) // (DA is load or store) && (DB is load or store)
-         ||
-         ((pipeB_DX_decode_bus[15:12] == 4'b0) && (pipeB_DX_decode_bus[15:0] != 16'b0) && (pipeA_DX_decode_bus[21] == 1) ) // branches are dependent on nzp bits if they are written
-      );
-   
+      
+   assign DaDbR1_dependence =  ((pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[33:31]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[24] == 1); // (DA.W == DB.R1) && (DA.WE == 1) && (DB.r1.re == 1)
+   assign DaDbR2_dependence =  ((pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[30:28]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[23] == 1 && pipeB_DX_decode_bus[18] == 0); // (DA.W == DB.R2) && (DA.WE == 1) && (DB.r2.re == 1) && (B is not store because then we MM bypass)
+   assign DaDbBr_dependence =  ((pipeB_DX_decode_bus[15:12] == 4'b0) && (pipeB_DX_decode_bus[15:0] != 16'b0) && (pipeA_DX_decode_bus[21] == 1)); // branches are dependent on nzp bits if they are written
+   assign DaDbMem_dependence = ((pipeA_DX_decode_bus[18] | pipeA_DX_decode_bus[19]) && (pipeB_DX_decode_bus[18] | pipeB_DX_decode_bus[19])); // (DA is load or store) && (DB is load or store)
    assign decode_dependence = (
          (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa)
          &&
-         DaDb_dependence
+         (DaDbR1_dependence || DaDbR2_dependence || DaDbBr_dependence || DaDbMem_dependence)
          &&
          ~branch_taken
       );
 
-
-   assign XbDb_dependence = 
-         (  ((pipeB_DX_decode_bus[24]) && (pipeB_XM_decode_bus[22]) && (pipeB_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25])) 
-            ||
-            ((pipeB_DX_decode_bus[23]) && (pipeB_XM_decode_bus[22]) && (pipeB_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]) && (~pipeB_DX_decode_bus[18])) 
-            || 
-            (pipeB_DX_decode_bus[15:12]==4'b0 && (pipeB_DX_decode_bus[15:0] != 16'b0) && (pipeB_XM_decode_bus[21] == 1))   // All branches are dependent on loads b/c of nzp bits
-         );
+   assign XbDbR1_dependence = ((pipeB_DX_decode_bus[24]) && (pipeB_XM_decode_bus[22]) && (pipeB_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25]));
+   assign XbDbR2_dependence = ((pipeB_DX_decode_bus[23]) && (pipeB_XM_decode_bus[22]) && (pipeB_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]) && (~pipeB_DX_decode_bus[18])) ;
+   assign XbDbBr_dependence = (pipeB_DX_decode_bus[15:12]==4'b0 && (pipeB_DX_decode_bus[15:0] != 16'b0) && (pipeB_XM_decode_bus[21] == 1));   // All branches are dependent on loads b/c of nzp bits
+   
    assign pipeB_loadToUse_XbDb = (
-         (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa && ~decode_dependence && ~DaDb_dependence)
+         (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa && ~decode_dependence)
          &&
          (pipeB_XM_decode_bus[19])  //XM_decode_bus[19] = is_load
          &&   
-         XbDb_dependence
+         (
+            (XbDbR1_dependence && ~DaDbR1_dependence)
+            ||
+            (XbDbR2_dependence && ~DaDbR2_dependence)
+            ||
+            (XbDbBr_dependence && ~DaDbBr_dependence)
+         )
          &&
-          ~branch_taken
+         ~branch_taken
       );
+
+   assign XaDbR1_dependence = ((pipeB_DX_decode_bus[24]) && (pipeA_XM_decode_bus[22]) && (pipeB_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25])); // Db.r1.re && Xa.we && (Db.r1 == Xa.wsel)
+   assign XaDbR2_dependence = ((pipeB_DX_decode_bus[23]) && (pipeA_XM_decode_bus[22]) && (pipeB_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeB_DX_decode_bus[18]));  // (Db.r2 = Xa.wsel)
+   assign XaDbBr_dependence = ((pipeB_DX_decode_bus[15:12]==4'b0) && (pipeB_DX_decode_bus[15:0] != 16'b0) && (pipeA_XM_decode_bus[21] == 1));
       
-      
-   assign XaDb_dependence = (
-         ((pipeB_DX_decode_bus[24]) && (pipeA_XM_decode_bus[22]) && (pipeB_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25])) 
-         ||
-         ((pipeB_DX_decode_bus[23]) && (pipeA_XM_decode_bus[22]) && (pipeB_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeB_DX_decode_bus[18])) 
-         || 
-         ((pipeB_DX_decode_bus[15:12]==4'b0) && (pipeB_DX_decode_bus[15:0] != 16'b0) && (pipeA_XM_decode_bus[21] == 1))
-   ); 
    assign pipeB_loadToUse_XaDb = (
-         (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa && ~decode_dependence && ~XbDb_dependence && ~DaDb_dependence)
+         (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa && ~decode_dependence)
          &&
          (pipeA_XM_decode_bus[19])  //XM_decode_bus[19] = is_load
          &&  
-         XaDb_dependence
+         (
+            (XaDbR1_dependence && ~XbDbR1_dependence && ~DaDbR1_dependence)
+            ||
+            (XaDbR2_dependence && ~XbDbR2_dependence && ~DaDbR2_dependence)
+            ||
+            (XaDbBr_dependence && ~XbDbBr_dependence && ~DaDbBr_dependence)
+         )
          &&
          ~branch_taken
       );
@@ -635,8 +632,10 @@ module lc4_processor(input wire         clk,             // main clock
   
    
    always @(posedge gwe) begin
-      if (next_pc > 16'h8280 && next_pc < 16'h82a0) begin
+      if (next_pc > 16'h83a0 && next_pc < 16'h83c0) begin
          //$display("DX_IR = %h %h. decode_dependence = %d. pipeA_loadToUse_XaDa = %d. test1 = %d. test2 = %d. A_SC = %d. B_SC = %d", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], decode_dependence, pipeA_loadToUse_XaDa, test1, test2, pipeA_DX_stallCode, pipeB_DX_stallCode);
+         // $display("DX_IR = %h %h. XM_IR = %h %h. MW_IR = %h %h. Wout_IR = %h %h. A_SC = %d. B_SC = %d. test: %d %d %d. Xadb = %d.", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], pipeA_XM_decode_bus[15:0], pipeB_XM_decode_bus[15:0], pipeA_MW_decode_bus[15:0], pipeB_MW_decode_bus[15:0], pipeA_Wout_decode_bus[15:0], pipeB_Wout_decode_bus[15:0], pipeA_DX_stallCode, pipeB_DX_stallCode, test1, test2, test3, XaDb_dependence);
+         //$display("DX_IR = %h %h. XM_IR = %h %h. Xadb = %d. A_LTU_XbDa: %d. A_LTU_XaDa: %d. dd: %d. XbDb: %d. DaDb: %d.", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], pipeA_XM_decode_bus[15:0], pipeB_XM_decode_bus[15:0], XaDb_dependence, pipeA_loadToUse_XbDa, pipeA_loadToUse_XaDa, decode_dependence, XbDb_dependence, DaDb_dependence);
          $display("DX_IR = %h %h. XM_IR = %h %h. MW_IR = %h %h. Wout_IR = %h %h. A_SC = %d. B_SC = %d.", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], pipeA_XM_decode_bus[15:0], pipeB_XM_decode_bus[15:0], pipeA_MW_decode_bus[15:0], pipeB_MW_decode_bus[15:0], pipeA_Wout_decode_bus[15:0], pipeB_Wout_decode_bus[15:0], pipeA_DX_stallCode, pipeB_DX_stallCode);
       end
       
