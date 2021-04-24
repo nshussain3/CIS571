@@ -228,8 +228,8 @@ module lc4_processor(input wire         clk,             // main clock
    assign pipeB_stageD_regStall_in = (pipeSwitch == 1) ? pipeA_stageD_reg_stall_input : pipeB_stageD_reg_stall_input;
 
    // Pipe_B Stage Registers
-   Nbit_reg #(16, 16'b0) pipeB_stageD_regPC (.in(pipeB_stageD_regPC_in), .out(pipeB_DX_pc), .clk(clk), .we(~(pipeB_loadToUse)), .gwe(gwe), .rst(rst));
-   Nbit_reg #(16, 16'b0) pipeB_stageD_regIR (.in(pipeB_stageD_regIR_in), .out(pipeB_stageD_IR_reg_out), .clk(clk), .we(~(pipeB_loadToUse)), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) pipeB_stageD_regPC (.in(pipeB_stageD_regPC_in), .out(pipeB_DX_pc), .clk(clk), .we(~(pipeA_loadToUse)), .gwe(gwe), .rst(rst));
+   Nbit_reg #(16, 16'b0) pipeB_stageD_regIR (.in(pipeB_stageD_regIR_in), .out(pipeB_stageD_IR_reg_out), .clk(clk), .we(~(pipeA_loadToUse)), .gwe(gwe), .rst(rst));
    Nbit_reg #(2, 2'b10)  pipeB_stageD_regStall (.in(pipeB_stageD_regStall_in), .out(pipeB_stageD_reg_stall_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
 
    Nbit_reg #(16, 16'b0) pipeB_stageX_regPC (.in(pipeB_DX_pc), .out(pipeB_X_pc_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
@@ -286,86 +286,86 @@ module lc4_processor(input wire         clk,             // main clock
 
 //STALLING
    wire pipeA_loadToUse_XbDa, pipeA_loadToUse_XaDa, decode_dependence, pipeB_loadToUse_XbDb, pipeB_loadToUse_XaDb;
+   wire DaDb_dependence, XbDa_dependence, XaDa_dependence, XbDb_dependence, XaDb_dependence;
    wire pipeA_loadToUse, pipeB_loadToUse;
    wire pipeSwitch, pipeB_superscalar_stall;
 
+   assign XbDa_dependence = 
+         (  ((pipeA_DX_decode_bus[24]) && (pipeB_XM_decode_bus[22]) && (pipeA_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25])) // (Da.r1.re == 1) && (Xb.we == 1) && (Da.r1 == Xb.wsel)
+            ||
+            ((pipeA_DX_decode_bus[23]) && (pipeB_XM_decode_bus[22]) && (pipeA_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])) // (Da.r2.re == 1) && (Xb.we == 1) && (Da.r2 == Xb.wsel) && (Da isn't a store)
+            || 
+            ((pipeA_DX_decode_bus[15:12]==4'b0) && (pipeA_DX_decode_bus[15:0] != 16'b0) && (pipeB_XM_decode_bus[21] == 1))
+         );
    assign pipeA_loadToUse_XbDa = ( 
          (pipeB_XM_decode_bus[19]) 
          &&   
-         (  ((pipeA_DX_decode_bus[24]) && (pipeA_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25])) 
-            ||
-            ((pipeA_DX_decode_bus[23]) && (pipeA_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])) 
-            || 
-            (pipeA_DX_decode_bus[15:12]==4'b0) 
-         )
+         XbDa_dependence
       );
 
-   wire test1, test2;
-   assign test1 = (  ((pipeA_DX_decode_bus[24]) && (pipeA_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25]))  //  reading from DX_r1 and XM_dest = DX_r1
-               &&      
-               ~(pipeB_XM_decode_bus[22] == 1 && (pipeA_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25]))      //no XbDa_r1 dependence
-            ) ;
-         
-   assign test2 = (  ((pipeA_DX_decode_bus[23]) && (pipeA_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])) // reading from DX_r2 and XM_dest = DX_r2 && DX isn't a store (that would be a WM (load to store) bypass)
-               &&
-               ~(pipeB_XM_decode_bus[22] == 1 && (pipeA_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]))   // no XbDa_r2 dependence
-            ) ;
-
+   
+   assign XaDa_dependence = 
+         (  ((pipeA_DX_decode_bus[24]) && (pipeA_XM_decode_bus[22]) && (pipeA_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25]))  //  (Da.r1.re == 1) && (Xa.we == 1) && (Da.r1 == Xa.wsel)
+            ||
+            ((pipeA_DX_decode_bus[23]) && (pipeA_XM_decode_bus[22]) &&(pipeA_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])) // (Da.r2.re == 1) && (Xa.we == 1) && (Da.r2 == Xa.wsel) && (Da isn't a store)
+            || 
+            ((pipeA_DX_decode_bus[15:12]==4'b0) && (pipeA_DX_decode_bus[15:0] != 16'b0) && (pipeA_XM_decode_bus[21] == 1))    // All branches are dependent on loads b/c of nzp bits
+         );
    assign pipeA_loadToUse_XaDa = (
-         (pipeA_XM_decode_bus[19]) //XM_decode_bus[19] = is_load
+         ~XbDa_dependence
+         &&
+         pipeA_XM_decode_bus[19] //XM_decode_bus[19] = is_load
          && 
-         (  (  ((pipeA_DX_decode_bus[24]) && (pipeA_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25]))  //  reading from DX_r1 and XM_dest = DX_r1
-               &&      
-               ~(pipeB_XM_decode_bus[22] == 1 && (pipeA_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25]))      //no XbDa_r1 dependence
-            ) 
-            ||
-            (  ((pipeA_DX_decode_bus[23]) && (pipeA_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeA_DX_decode_bus[18])) // reading from DX_r2 and XM_dest = DX_r2 && DX isn't a store (that would be a WM (load to store) bypass)
-               &&
-               ~(pipeB_XM_decode_bus[22] == 1 && (pipeA_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]))   // no XbDa_r2 dependence
-            ) 
-            || 
-            pipeA_DX_decode_bus[15:12]==4'b0          // All branches are dependent on loads b/c of nzp bits
-         ) 
+         XaDa_dependence  
       );
 
+   assign DaDb_dependence = 
+      (  
+         ((pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[33:31]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[24] == 1) // (DA.W == DB.R1) && (DA.WE == 1) && (DB.r1.re == 1)
+         ||
+         ( (pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[30:28]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[23] == 1 && pipeB_DX_decode_bus[18] == 0) // (DA.W == DB.R2) && (DA.WE == 1) && (DB.r2.re == 1) && (B is not store because then we MM bypass)
+         ||
+         ( (pipeA_DX_decode_bus[18] | pipeA_DX_decode_bus[19]) && (pipeB_DX_decode_bus[18] | pipeB_DX_decode_bus[19]) ) // (DA is load or store) && (DB is load or store)
+         ||
+         ((pipeB_DX_decode_bus[15:12] == 4'b0) && (pipeB_DX_decode_bus[15:0] != 16'b0) && (pipeA_DX_decode_bus[21] == 1) ) // branches are dependent on nzp bits if they are written
+      );
+   
    assign decode_dependence = (
          (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa)
          &&
-         (  ((pipeB_DX_decode_bus[15:12] == 4'b0) && (pipeA_DX_decode_bus[21] == 1)) // branches are dependent on nzp bits if they are written
-            ||
-            ((pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[33:31]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[24] == 1) 
-            ||
-            ( (pipeA_DX_decode_bus[27:25] == pipeB_DX_decode_bus[30:28]) && pipeA_DX_decode_bus[22] == 1 && pipeB_DX_decode_bus[23] == 1) 
-            ||
-            ( (pipeA_DX_decode_bus[18] | pipeA_DX_decode_bus[19]) && (pipeB_DX_decode_bus[18] | pipeB_DX_decode_bus[19]) ) 
-         )
+         DaDb_dependence
       );
 
 
+   assign XbDb_dependence = 
+         (  ((pipeB_DX_decode_bus[24]) && (pipeB_XM_decode_bus[22]) && (pipeB_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25])) 
+            ||
+            ((pipeB_DX_decode_bus[23]) && (pipeB_XM_decode_bus[22]) && (pipeB_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]) && (~pipeB_DX_decode_bus[18])) 
+            || 
+            (pipeB_DX_decode_bus[15:12]==4'b0 && (pipeB_DX_decode_bus[15:0] != 16'b0) && (pipeB_XM_decode_bus[21] == 1))   // All branches are dependent on loads b/c of nzp bits
+         );
    assign pipeB_loadToUse_XbDb = (
-         (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa && ~decode_dependence)
+         (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa && ~decode_dependence && ~DaDb_dependence)
          &&
          (pipeB_XM_decode_bus[19])  //XM_decode_bus[19] = is_load
          &&   
-         (  ((pipeB_DX_decode_bus[24]) && (pipeB_DX_decode_bus[33:31] == pipeB_XM_decode_bus[27:25])) 
-            ||
-            ((pipeB_DX_decode_bus[23]) && (pipeB_DX_decode_bus[30:28] == pipeB_XM_decode_bus[27:25]) && (~pipeB_DX_decode_bus[18])) 
-            || 
-            (pipeB_DX_decode_bus[15:12]==4'b0)   // All branches are dependent on loads b/c of nzp bits
-         )
+         XbDb_dependence
       );
-   
+      
+      
+   assign XaDb_dependence = (
+         ((pipeB_DX_decode_bus[24]) && (pipeA_XM_decode_bus[22]) && (pipeB_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25])) 
+         ||
+         ((pipeB_DX_decode_bus[23]) && (pipeA_XM_decode_bus[22]) && (pipeB_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeB_DX_decode_bus[18])) 
+         || 
+         ((pipeB_DX_decode_bus[15:12]==4'b0) && (pipeB_DX_decode_bus[15:0] != 16'b0) && (pipeA_XM_decode_bus[21] == 1))
+   ); 
    assign pipeB_loadToUse_XaDb = (
-         (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa && ~decode_dependence && ~pipeB_loadToUse_XbDb)
+         (~pipeA_loadToUse_XbDa && ~pipeA_loadToUse_XaDa && ~decode_dependence && ~XbDb_dependence && ~DaDb_dependence)
          &&
          (pipeA_XM_decode_bus[19])  //XM_decode_bus[19] = is_load
          &&  
-         (  ((pipeB_DX_decode_bus[24]) && (pipeB_DX_decode_bus[33:31] == pipeA_XM_decode_bus[27:25])) 
-            ||
-            ((pipeB_DX_decode_bus[23]) && (pipeB_DX_decode_bus[30:28] == pipeA_XM_decode_bus[27:25]) && (~pipeB_DX_decode_bus[18])) 
-            || 
-            (pipeB_DX_decode_bus[15:12]==4'b0)   // All branches are dependent on loads b/c of nzp bits
-         ) 
+         XaDb_dependence
       );
 
 
@@ -426,14 +426,15 @@ module lc4_processor(input wire         clk,             // main clock
       pipeB_stageX_reg_B_out;
 
    assign pipeB_WMBypassResult = 
-      ((pipeB_MW_decode_bus[18]) && (pipeB_Wout_decode_bus[22]) && (pipeB_MW_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25])) ? pipeB_W_result:  //MW_decode_bus[18] = is_store
-      ((pipeB_MW_decode_bus[18]) && (pipeA_Wout_decode_bus[22]) && (pipeB_MW_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25])) ? pipeA_W_result:  //MW_decode_bus[18] = is_store
-      pipeB_MMBypassResult;
 
+      ((pipeA_MW_decode_bus[27:25] == pipeB_MW_decode_bus[30:28]) &&                             // (Ma.wsel == Mb.r2)
+                                    (pipeA_MW_decode_bus[22] == 1) &&                                                         // (Ma.we)
+                                    (pipeB_MW_decode_bus[18] == 1)) ? pipeA_stageM_reg_O_out :     // MM bypass
 
-   assign pipeB_MMBypassResult = (  (pipeA_MW_decode_bus[27:25] == pipeB_XM_decode_bus[30:28]) && 
-                                    (pipeA_MW_decode_bus[22] == 1) && 
-                                    (pipeB_MW_decode_bus[18] == 1) ) ? pipeA_stageM_reg_O_out : pipeB_stageM_reg_B_out;
+      ((pipeB_MW_decode_bus[18]) && (pipeB_Wout_decode_bus[22]) && (pipeB_MW_decode_bus[30:28] == pipeB_Wout_decode_bus[27:25])) ? pipeB_W_result:  // Mb.is_store && Wb.we && (Mb.r2 == Wb.wsel)
+      ((pipeB_MW_decode_bus[18]) && (pipeA_Wout_decode_bus[22]) && (pipeB_MW_decode_bus[30:28] == pipeA_Wout_decode_bus[27:25])) ? pipeA_W_result:  // Mb.is_store && Wa.we && (Mb.r2 == Wa.wsel)
+      pipeB_stageM_reg_B_out;
+
 
     
 
@@ -619,8 +620,9 @@ module lc4_processor(input wire         clk,             // main clock
   
    
    always @(posedge gwe) begin
-      if (next_pc < 16'h8220) begin
-         $display("DX_IR = %h %h. decode_dependence = %d. pipeA_loadToUse_XaDa = %d. test1 = %d. test2 = %d", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], decode_dependence, pipeA_loadToUse_XaDa, test1, test2);
+      if (next_pc > 16'h9f85 & next_pc < 16'h9fa1) begin
+         //$display("DX_IR = %h %h. decode_dependence = %d. pipeA_loadToUse_XaDa = %d. test1 = %d. test2 = %d. A_SC = %d. B_SC = %d", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], decode_dependence, pipeA_loadToUse_XaDa, test1, test2, pipeA_DX_stallCode, pipeB_DX_stallCode);
+         $display("DX_IR = %h %h. XM_IR = %h %h. MW_IR = %h %h. Wout_IR = %h %h. A_SC = %d. B_SC = %d.", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], pipeA_XM_decode_bus[15:0], pipeB_XM_decode_bus[15:0], pipeA_MW_decode_bus[15:0], pipeB_MW_decode_bus[15:0], pipeA_Wout_decode_bus[15:0], pipeB_Wout_decode_bus[15:0], pipeA_DX_stallCode, pipeB_DX_stallCode);
       end
       
 
