@@ -91,9 +91,9 @@ module lc4_processor(input wire         clk,             // main clock
    // Pipe_A Pipeswitching logic
    wire[15:0] pipeA_stageD_regPC_in, pipeA_stageD_regIR_in;
    wire[1:0] pipeA_stageD_regStall_in;
-   assign pipeA_stageD_regPC_in = (pipeSwitch == 1) ? pipeB_DX_pc : pipeA_D_pc_in;
-   assign pipeA_stageD_regIR_in = (pipeSwitch == 1) ? pipeB_stageD_IR_reg_out : pipeA_stageD_IR_input;
-   assign pipeA_stageD_regStall_in = (pipeSwitch == 1) ? pipeB_stageD_reg_stall_out : pipeA_stageD_reg_stall_input;
+   assign pipeA_stageD_regPC_in = (pipeSwitch == 1 && branch_taken == 0) ? pipeB_DX_pc : pipeA_D_pc_in;
+   assign pipeA_stageD_regIR_in = (pipeSwitch == 1 && branch_taken == 0) ? pipeB_stageD_IR_reg_out : pipeA_stageD_IR_input;
+   assign pipeA_stageD_regStall_in = (pipeSwitch == 1 && branch_taken == 0) ? pipeB_stageD_reg_stall_out : pipeA_stageD_reg_stall_input;
    
    
 
@@ -174,7 +174,7 @@ module lc4_processor(input wire         clk,             // main clock
    
    
    // need to do this because trap returns pc+1 for R7. 
-   assign pipeA_stageM_reg_O_input = (pipeA_XM_decode_bus[16] == 1) ? pipeA_DX_pc : pipeA_alu_output; 
+   assign pipeA_stageM_reg_O_input = (pipeA_XM_decode_bus[16] == 1) ? pipeB_X_pc_out : pipeA_alu_output; 
    
    // we don't know what the nzp bits for what we loaded are until stage M, so can't fully trust MW_nzp_bits
    assign pipeA_stageW_regNZP_input = (pipeA_MW_decode_bus[19] == 1) ? pipeA_nzp_new_bits_ld : pipeA_MW_nzp_bits; 
@@ -223,11 +223,13 @@ module lc4_processor(input wire         clk,             // main clock
    // Pipe_B Pipeswitching logic
    wire [15:0] pipeB_stageD_regPC_in, pipeB_stageD_regIR_in;
    wire [1:0] pipeB_stageD_regStall_in;
-   assign pipeB_stageD_regPC_in = (pipeSwitch == 1) ? pipeA_D_pc_in : pipeB_D_pc_in;
-   assign pipeB_stageD_regIR_in = (pipeSwitch == 1) ? pipeA_stageD_IR_input : pipeB_stageD_IR_input;
-   assign pipeB_stageD_regStall_in = (pipeSwitch == 1) ? pipeA_stageD_reg_stall_input : pipeB_stageD_reg_stall_input;
+   assign pipeB_stageD_regPC_in = (pipeSwitch == 1 && branch_taken == 0) ? pipeA_D_pc_in : pipeB_D_pc_in;
+   assign pipeB_stageD_regIR_in = (pipeSwitch == 1 && branch_taken == 0) ? pipeA_stageD_IR_input : pipeB_stageD_IR_input;
+   assign pipeB_stageD_regStall_in = (pipeSwitch == 1 && branch_taken == 0) ? pipeA_stageD_reg_stall_input : pipeB_stageD_reg_stall_input;
 
    // Pipe_B Stage Registers
+   // Nbit_reg #(2, 2'b10)  pipeB_stageF_regStall (.in(pipeB_stageF_regStall_in), .out(pipeB_stageF_reg_stall_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
+
    Nbit_reg #(16, 16'b0) pipeB_stageD_regPC (.in(pipeB_stageD_regPC_in), .out(pipeB_DX_pc), .clk(clk), .we(~(pipeA_loadToUse)), .gwe(gwe), .rst(rst));
    Nbit_reg #(16, 16'b0) pipeB_stageD_regIR (.in(pipeB_stageD_regIR_in), .out(pipeB_stageD_IR_reg_out), .clk(clk), .we(~(pipeA_loadToUse)), .gwe(gwe), .rst(rst));
    Nbit_reg #(2, 2'b10)  pipeB_stageD_regStall (.in(pipeB_stageD_regStall_in), .out(pipeB_stageD_reg_stall_out), .clk(clk), .we(1'b1), .gwe(gwe), .rst(rst));
@@ -373,17 +375,20 @@ module lc4_processor(input wire         clk,             // main clock
 // handling stall codes and flushes
    assign pipeA_loadToUse = pipeA_loadToUse_XaDa | pipeA_loadToUse_XbDa;
 
-   assign pipeA_stageD_reg_stall_input = (pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) ? 2'd2 : 
+   assign pipeA_stageD_reg_stall_input = (branch_taken) ? 2'd2 : 
                                        2'd0;
 
    assign pipeA_DX_stallCode = 
-                        (pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) ? 2'd2 : 
+                        (branch_taken) ? 2'd2 : 
                         (pipeA_loadToUse == 1) ? 2'd3 :
                         pipeA_stageD_reg_stall_out;
                   
          //insert NOP if necessary
-   assign pipeA_stageD_IR_input = ((pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) == 1) ? {16{1'b0}} : i_cur_insn_A;
-   assign pipeA_stageX_IR_input = ((pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control | pipeA_loadToUse) == 1) ? 
+   wire branch_taken;
+   assign branch_taken = pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control;
+         
+   assign pipeA_stageD_IR_input = ((branch_taken) == 1) ? {16{1'b0}} : i_cur_insn_A;
+   assign pipeA_stageX_IR_input = ((branch_taken | pipeA_loadToUse) == 1) ? 
                                        {34{1'b0}} : pipeA_DX_decode_bus;
 
    //start pipe B
@@ -392,19 +397,19 @@ module lc4_processor(input wire         clk,             // main clock
    assign pipeSwitch = decode_dependence | pipeB_loadToUse;
    
 
-   assign pipeB_stageD_reg_stall_input = (pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) ? 2'd2 : 
+   assign pipeB_stageD_reg_stall_input = (branch_taken) ? 2'd2 : 
                                        2'd0;
 
    assign pipeB_DX_stallCode = 
-                        (pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) ? 2'd2 :
+                        (branch_taken) ? 2'd2 :
                         (pipeB_superscalar_stall == 1) ? 2'd1 :
                         (pipeB_loadToUse == 1) ? 2'd3 :
                         pipeB_stageD_reg_stall_out;
    assign pipeB_XM_stallCode = (pipeA_X_branch_taken_or_control == 1) ? 2'd2 : pipeB_X_stallCode_out;
 
          //insert NOP if necessary
-   assign pipeB_stageD_IR_input = ((pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control) == 1) ? {16{1'b0}} : i_cur_insn_B;
-   assign pipeB_stageX_IR_input = ((pipeA_X_branch_taken_or_control | pipeB_X_branch_taken_or_control | pipeB_loadToUse | pipeB_superscalar_stall) == 1) 
+   assign pipeB_stageD_IR_input = ((branch_taken) == 1) ? {16{1'b0}} : i_cur_insn_B;
+   assign pipeB_stageX_IR_input = ((branch_taken | pipeB_loadToUse | pipeB_superscalar_stall) == 1) 
                                           ? {34{1'b0}} : pipeB_DX_decode_bus;
                                           
    assign pipeB_stageM_IR_input = (pipeA_X_branch_taken_or_control == 1)  ? {34{1'b0}} : pipeB_XM_decode_bus;
@@ -620,7 +625,7 @@ module lc4_processor(input wire         clk,             // main clock
   
    
    always @(posedge gwe) begin
-      if (next_pc > 16'h9f85 & next_pc < 16'h9fa1) begin
+      if (next_pc > 16'h8320 && next_pc < 16'h8330) begin
          //$display("DX_IR = %h %h. decode_dependence = %d. pipeA_loadToUse_XaDa = %d. test1 = %d. test2 = %d. A_SC = %d. B_SC = %d", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], decode_dependence, pipeA_loadToUse_XaDa, test1, test2, pipeA_DX_stallCode, pipeB_DX_stallCode);
          $display("DX_IR = %h %h. XM_IR = %h %h. MW_IR = %h %h. Wout_IR = %h %h. A_SC = %d. B_SC = %d.", pipeA_DX_decode_bus[15:0], pipeB_DX_decode_bus[15:0], pipeA_XM_decode_bus[15:0], pipeB_XM_decode_bus[15:0], pipeA_MW_decode_bus[15:0], pipeB_MW_decode_bus[15:0], pipeA_Wout_decode_bus[15:0], pipeB_Wout_decode_bus[15:0], pipeA_DX_stallCode, pipeB_DX_stallCode);
       end
